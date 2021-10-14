@@ -6,8 +6,8 @@ from mpl_toolkits.axisartist.parasite_axes import HostAxes, ParasiteAxes
 from datetime import datetime
 from configparser import ConfigParser
 import csv
-from o2mb_sensor import Sensor
-from o2mb_graph import O2mb_graph
+#from sensor import Sensor
+from graph import Graph
 
 
 ###############################################################################
@@ -74,7 +74,7 @@ if __name__ == '__main__':
         #xlen    = log.line_num
         xlen    = 0
         ax      = fig.add_axes( [0.05, 0.05, 0.70, 0.90], axes_class=HostAxes )
-        graph   = O2mb_graph( ax, xlen, param )
+        graph   = Graph( ax, xlen, param )
 
         for row in log:
             for k, v in row.items():
