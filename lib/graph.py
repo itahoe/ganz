@@ -11,13 +11,13 @@ from configparser import ConfigParser
 
 ###############################################################################
 # GRAPH CFG
-class   O2mb_graph_cfg:
+class   Graph_cfg:
     __slots__       = 'ymin', 'ymax', 'color', 'linestyle', 'linewidth'
 
 
 ###############################################################################
 # GRAPH
-class   O2mb_graph:
+class   Graph:
 
     def __init__( self, host, xlen, param, direction='forward' ):
 
@@ -34,7 +34,7 @@ class   O2mb_graph:
 
         for key in param:
             self.ydata[key[ 0]]             = [None] * xlen
-            self.cfg[key[ 0]]               = O2mb_graph_cfg()
+            self.cfg[key[ 0]]               = Graph_cfg()
             self.cfg[key[ 0]].ymin          = key[ 1]
             self.cfg[key[ 0]].ymax          = key[ 2]
             self.cfg[key[ 0]].color         = key[ 3]

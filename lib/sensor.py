@@ -1,7 +1,7 @@
 ﻿import numpy as np
 import math
 from scipy.signal   import kaiserord, butter, lfilter, lfilter_zi, filtfilt, firwin, freqz
-from o2mb_graph     import O2mb_graph
+from graph          import Graph
 from threading      import Timer
 import matplotlib.pyplot as plt
 from mpl_toolkits.axisartist.parasite_axes import HostAxes, ParasiteAxes
@@ -347,11 +347,11 @@ if __name__ == '__main__':
     ###########################################################################
     # CONFIG
     cfg     = ConfigParser()
-    cfg['DEFAULT']['filename']  = "o2mb.ini"
+    cfg['DEFAULT']['filename']  = "ganz.ini"
     cfg.read( cfg['DEFAULT']['filename'] )
 
-    gcfg    = ConfigParser()
-    gcfg.read( "o2mb_graph.ini")
+    #gcfg    = ConfigParser()
+    #gcfg.read( "o2mb_graph.ini")
 
 
     title   =   cfg['SENSOR']['modbus_port'] + '@' +            \
@@ -377,7 +377,7 @@ if __name__ == '__main__':
 
     xlen    = cfg.getint( 'GRAPH', 'axlen' )
     ax      = fig.add_axes( [0.05, 0.05, 0.70, 0.60], axes_class=HostAxes )
-    graph   = O2mb_graph( ax, xlen, param )
+    graph   = Graph( ax, xlen, param )
     graph.init_timestamp( graph.xdata )
 
     graph.ydata['O2']   = [0.0 for a in range( len(graph.ydata['O2']))]
