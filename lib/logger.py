@@ -3,8 +3,8 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.axisartist.parasite_axes import HostAxes, ParasiteAxes
 from datetime import datetime, timedelta
 from configparser import ConfigParser
-from o2mb_sensor import Sensor
-from o2mb_graph import O2mb_graph
+from sensor import Sensor
+from graph import Graph
 
 
 ###############################################################################

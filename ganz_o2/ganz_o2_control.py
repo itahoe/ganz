@@ -1,4 +1,7 @@
-﻿import time
+﻿import sys
+sys.path.append('../lib')
+
+import time
 import ctypes
 import timeit
 import matplotlib.pyplot as plt
@@ -6,9 +9,9 @@ from matplotlib.widgets import Button, RadioButtons, CheckButtons, Slider
 from matplotlib.ticker import AutoMinorLocator, MultipleLocator
 from mpl_toolkits.axisartist.parasite_axes import HostAxes, ParasiteAxes
 from datetime import datetime, timedelta
-from o2mb_sensor import Sensor
-from o2mb_logger import Logger
-from o2mb_graph import O2mb_graph
+from sensor import Sensor
+from logger import Logger
+from graph import Graph
 #from o2mb_2127 import O2mb
 from configparser import ConfigParser
 
@@ -261,12 +264,14 @@ def graph_buffer_create(axmax):
 # MAIN
 if __name__ == '__main__':
 
-    cfgfile = "o2mb.ini"
+    cfgfile = "ganz.ini"
     cfg     = ConfigParser()
     cfg.read( cfgfile )
 
     cfgsens = cfg['SENSOR']
-    title   = cfgsens['modbus_port'] + '@' + cfgsens['modbus_baudrate'] + ' ADDR: ' + cfgsens['modbus_address']
+    title   = cfg['SENSOR']['modbus_port'       ] + '@'         + \
+              cfg['SENSOR']['modbus_baudrate'   ] + ' ADDR: '   + \
+              cfg['SENSOR']['modbus_address'    ]
 
     fig     = plt.figure()
     fig.canvas.manager.set_window_title( title )
