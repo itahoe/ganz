@@ -142,6 +142,12 @@ if __name__ == '__main__':
     ###########################################################################
     # SENSOR
     sens    = Sensor( cfg['SENSOR'] )
+    sens.read_head()
+    print( '    device_id: ', sens.head.device_id       )
+    print( '  hardware_id: ', sens.head.hardware_id     )
+    print( '  firmware_id: ', sens.head.firmware_id     )
+    print( 'serial_number: ', sens.head.serial_number   )
+
 
     ###########################################################################
     # GRAPH
