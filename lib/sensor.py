@@ -16,7 +16,21 @@ from configparser import ConfigParser
 
 
 ###############################################################################
-# 
+# SENSOR STORAGE
+class   SensorMeasure:
+    __slots__       =   'adc_raw', 'adc_mV', 'ppm_sw', 'ppm_hw',            \
+                        'temp_digC', 'pres_hPa',                            \
+                        'mcu_digc', 'mcu_vdda',                             \
+                        'temp_raw', 'pres_raw', 'slope_raw', 'offset_raw',
+
+class   SensorStatus:
+    __slots__       =   'error_code', 'starts_cnt',                         \
+                        'adc_vref', 'adc_res_bits',                         \
+                        'raw2ppm_fv', 'raw2ppm_ft', 'raw2ppm_fp',
+
+
+###############################################################################
+# SENSOR
 class Sensor:
 
     def __init__(self, cfg):
@@ -36,33 +50,14 @@ class Sensor:
                                             'firmware_id',
                                             'serial_number' ])
 
-        self.status     = dict.fromkeys([   'error_code',
-                                            'starts_cnt',
-                                            'adc_vref',
-                                            'adc_res_bits',
-                                            'mcu_digc',
-                                            'mcu_vdda',
-                                            'raw2ppm_fv',
-                                            'raw2ppm_ft',
-                                            'raw2ppm_fp',   ])
+        self.sts                        = SensorStatus()
+        self.meas                       = SensorMeasure()
 
-        self.measure    = dict.fromkeys([   'error_code',
-                                            'starts_cnt',
-                                            'adc_vref',
-                                            'adc_res_bits',
-                                            'mcu_digc',
-                                            'mcu_vdda',
-                                            'raw2ppm_fv',
-                                            'raw2ppm_ft',
-                                            'raw2ppm_fp',
-                                            'ppm',
-                                            't_digc',
-                                            'p_hpa',
-                                            'adc_raw',
-                                            't_raw',
-                                            'p_raw',
-                                            'slope_raw',
-                                            'offset_raw',   ])
+        self.meas.adc_raw               = None
+        self.meas.adc_mV                = None
+        self.meas.temp_digC             = None
+        self.meas.pres_hPa              = None
+
 
         self.p0_ppm         = cfg.getfloat('p0_ppm')
         self.p0_raw         = cfg.getfloat('p0_raw')
@@ -70,7 +65,8 @@ class Sensor:
         self.p1_raw         = cfg.getfloat('p1_raw')
         self.trim_update()
 
-        self.k_temp         = cfg.getfloat('afe_drift_t')
+        #self.k_temp         = cfg.getfloat('afe_drift_t')
+        self.afe_drift_t    = cfg.getfloat('afe_drift_t')
 
         #######################################################################
         # LPF INIT
@@ -172,25 +168,25 @@ class Sensor:
                                     quantity_of_x       = 32,
                                     data_format         = '>hhhhhhhhhhffffffhhiiihh' )
 
-        self.measure['error_code'   ]   = int(      d[ 0])
-        self.measure['starts_cnt'   ]   = int(      d[ 1])
-        self.measure['adc_vref'     ]   = int(      d[ 4])
-        self.measure['adc_res_bits' ]   = int(      d[ 5])
-        self.measure['mcu_digc'     ]   = int(      d[ 8])
-        self.measure['mcu_vdda'     ]   = int(      d[ 9])
-        self.measure['raw2ppm_fv'   ]   = float(    d[10])
-        self.measure['raw2ppm_ft'   ]   = float(    d[11])
-        self.measure['raw2ppm_fp'   ]   = float(    d[12])
-        self.measure['ppm'          ]   = float(    d[13])
-        self.measure['t_digc'       ]   = float(    d[14])
-        self.measure['p_hpa'        ]   = float(    d[15])
-        self.measure['adc_raw'      ]   = int(      d[18])
-        self.measure['t_raw'        ]   = int(      d[19])
-        self.measure['p_raw'        ]   = int(      d[20])
-        self.measure['slope_raw'    ]   = int(      d[21])
-        self.measure['offset_raw'   ]   = int(      d[22])
+        self.sts.error_code     = int(      d[ 0])
+        self.sts.starts_cnt     = int(      d[ 1])
+        self.sts.adc_vref       = int(      d[ 4])
+        self.sts.adc_res_bits   = int(      d[ 5])
+        self.meas.mcu_digc      = int(      d[ 8])
+        self.meas.mcu_vdda      = int(      d[ 9])
+        self.sts.raw2ppm_fv     = float(    d[10])
+        self.sts.raw2ppm_ft     = float(    d[11])
+        self.sts.raw2ppm_fp     = float(    d[12])
+        self.meas.ppm_hw        = float(    d[13])
+        self.meas.temp_digC     = float(    d[14])
+        self.meas.pres_hPa      = float(    d[15])
+        self.meas.adc_raw       = int(      d[18])
+        self.meas.temp_raw      = int(      d[19])
+        self.meas.pres_raw      = int(      d[20])
+        self.meas.slope_raw     = int(      d[21])
+        self.meas.offset_raw    = int(      d[22])
 
-        return self.measure
+        return self.meas
 
 
     def print(self, data):
@@ -206,9 +202,9 @@ class Sensor:
     def raw_to_mV(self, raw):
         return float(raw) * (2500/(2**24))
 
-
+    '''
     def raw_to_ppm(self, raw, t_digc, p_hpa ):
-        t_offset        = self.k_temp * t_digc
+        t_offset        = self.afe_drift_t * t_digc
 
         self.xn[1:]     = self.xn[:-1]
         self.xn[0]      = raw
@@ -225,6 +221,50 @@ class Sensor:
         ppm = self.offset + (self.tg * self.y)
 
         return( ppm )
+    '''
+
+    def raw_to_ppm(self, raw, t_digc, p_hpa ):
+        self.xn[1:]     = self.xn[:-1]
+        self.xn[0]      = raw
+
+        self.tn[1:]     = self.tn[:-1]
+        self.tn[0]      = t_digc
+
+        t               = lfilter(self.taps, 1.0, self.tn )
+        t_offset        = self.afe_drift_t * t_digc
+        self.t          = t[-1] + t_offset
+
+        y               = lfilter(self.taps, 1.0, self.xn )
+        self.y          = y[-1] + self.t
+
+        ppm = self.offset + (self.tg * self.y)
+
+        return( ppm )
+
+
+    def trim_drift_temp( self, digC, raw ):
+        self.ktemp.raw_prev     = self.ktemp.raw_curr
+        self.ktemp.raw_curr     = raw
+        self.ktemp.digC_prev    = self.ktemp.digC_curr
+        self.ktemp.digC_curr    = digC
+        #self.y
+        print('digc, raw: ', digc, raw )
+
+
+    def trim_kpres( self, hpa ):
+        print('trim_kpres: ', hpa )
+
+
+    def rmse( self, data ):
+        #self.sens.rmse( self.graph.ydata['O2'] )
+
+        average = 0
+        xsum    = 0
+        for x in data:   average += x
+        average /= len( data )
+        for x in data:   xsum += (x - average)**2
+        xsum    /= ( len( data ) - 1)
+        return math.sqrt( xsum )
 
 
     def trim_p0(self):
