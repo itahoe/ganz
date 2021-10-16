@@ -164,12 +164,6 @@ class Sensor:
         self.head.firmware_id   = "%c%c%c%c%c%c" % ( d[ 9], d[ 8], d[11], d[10], d[13], d[12] )
         self.head.serial_number = "%04X%04X%04X%04X%04X%04X%04X%04X" % ( d[16], d[17], d[18], d[19], d[20], d[21], d[22], d[23]  )
 
-        #print(d)
-        #print( "    device_id: ",   self.head.device_id     )
-        #print( "  hardware_id: ",   self.head.hardware_id   )
-        #print( "  firmware_id: ",   self.head.firmware_id   )
-        #print( "serial_number: ",   self.head.serial_number )
-
         return self.head
 
 
@@ -213,26 +207,6 @@ class Sensor:
     def raw_to_mV(self, raw):
         return float(raw) * (2500/(2**24))
 
-    '''
-    def raw_to_ppm(self, raw, t_digc, p_hpa ):
-        t_offset        = self.afe_drift_t * t_digc
-
-        self.xn[1:]     = self.xn[:-1]
-        self.xn[0]      = raw
-
-        self.tn[1:]     = self.tn[:-1]
-        self.tn[0]      = t_digc
-
-        t               = lfilter(self.taps, 1.0, self.tn )
-        self.t          = t[-1] + t_offset
-
-        y               = lfilter(self.taps, 1.0, self.xn )
-        self.y          = y[-1] + self.t
-
-        ppm = self.offset + (self.tg * self.y)
-
-        return( ppm )
-    '''
 
     def raw_to_ppm(self, raw, t_digc, p_hpa ):
         self.xn[1:]     = self.xn[:-1]
@@ -262,13 +236,11 @@ class Sensor:
         print('digc, raw: ', digc, raw )
 
 
-    def trim_kpres( self, hpa ):
+    def trim_drift_pres( self, hpa ):
         print('trim_kpres: ', hpa )
 
 
     def rmse( self, data ):
-        #self.sens.rmse( self.graph.ydata['O2'] )
-
         average = 0
         xsum    = 0
         for x in data:   average += x

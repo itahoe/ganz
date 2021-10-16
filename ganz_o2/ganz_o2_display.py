@@ -57,9 +57,6 @@ class Callback:
 
     def timer( self ):
         m                           = self.sens.read()
-        #self.sens.meas.adc_raw      = m['adc_raw' ]
-        #self.sens.meas.temp_digC    = m['t_digc'  ]
-        #self.sens.meas.pres_hPa     = m['p_hpa'   ]
         self.sens.meas.adc_mV       = self.sens.raw_to_mV( self.sens.meas.adc_raw )
         self.sens.meas.ppm_sw       = self.sens.raw_to_ppm( self.sens.meas.adc_raw,
                                                             self.sens.meas.temp_digC,
@@ -107,12 +104,13 @@ class Callback:
                 self.cfg.write( configfile )
 
         elif label == 'K TEMP':
-            self.sens.trim_drift_temp( self.sens.meas.temp_digC,  self.sens.y[-1] )
+            #self.sens.trim_drift_temp( self.sens.meas.temp_digC,  self.sens.y[-1] )
+            self.sens.trim_drift_temp( self.sens.meas.temp_digC,  self.sens.y )
 
         elif label == 'K PRES':
             m       = self.sens.read()
             #print( 'p_hpa: ', type(m['p_hpa']) )
-            self.sens.trim_kpres( m['p_hpa'] )
+            self.sens.trim_drift_pres( m['p_hpa'] )
 
         else:
             print( label )
