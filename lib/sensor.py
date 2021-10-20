@@ -28,6 +28,9 @@ class   SensorStatus:
                         'adc_vref', 'adc_res_bits',                         \
                         'raw2ppm_fv', 'raw2ppm_ft', 'raw2ppm_fp',
 
+class   SensorKtemp:
+    __slots__       =   'k', 'raw_0', 'raw_1', 'digc_0', 'digc_1',
+
 
 ###############################################################################
 # SENSOR
@@ -50,13 +53,22 @@ class Sensor:
                                             'firmware_id',
                                             'serial_number' ])
 
+        __slots__                       = 'y'
+
         self.sts                        = SensorStatus()
         self.meas                       = SensorMeasure()
+        self.ktemp                      = SensorKtemp()
 
         self.meas.adc_raw               = None
         self.meas.adc_mV                = None
         self.meas.temp_digC             = None
         self.meas.pres_hPa              = None
+
+        self.ktemp.k                    = None
+        self.ktemp.raw_0                = None
+        self.ktemp.raw_1                = None
+        self.ktemp.digc_0               = None
+        self.ktemp.digc_1               = None
 
 
         self.p0_ppm         = cfg.getfloat('p0_ppm')
@@ -64,6 +76,14 @@ class Sensor:
         self.p1_ppm         = cfg.getfloat('p1_ppm')
         self.p1_raw         = cfg.getfloat('p1_raw')
         self.trim_update()
+
+
+        self.ktemp.raw_0    = cfg.getfloat('ktemp_raw_0')
+        self.ktemp.raw_1    = cfg.getfloat('ktemp_raw_1')
+        self.ktemp.digc_0   = cfg.getfloat('ktemp_digc_0')
+        self.ktemp.digc_1   = cfg.getfloat('ktemp_digc_1')
+        self.trim_ktemp_update()
+
 
         #self.k_temp         = cfg.getfloat('afe_drift_t')
         self.afe_drift_t    = cfg.getfloat('afe_drift_t')
@@ -202,26 +222,6 @@ class Sensor:
     def raw_to_mV(self, raw):
         return float(raw) * (2500/(2**24))
 
-    '''
-    def raw_to_ppm(self, raw, t_digc, p_hpa ):
-        t_offset        = self.afe_drift_t * t_digc
-
-        self.xn[1:]     = self.xn[:-1]
-        self.xn[0]      = raw
-
-        self.tn[1:]     = self.tn[:-1]
-        self.tn[0]      = t_digc
-
-        t               = lfilter(self.taps, 1.0, self.tn )
-        self.t          = t[-1] + t_offset
-
-        y               = lfilter(self.taps, 1.0, self.xn )
-        self.y          = y[-1] + self.t
-
-        ppm = self.offset + (self.tg * self.y)
-
-        return( ppm )
-    '''
 
     def raw_to_ppm(self, raw, t_digc, p_hpa ):
         self.xn[1:]     = self.xn[:-1]
@@ -242,13 +242,16 @@ class Sensor:
         return( ppm )
 
 
-    def trim_drift_temp( self, digC, raw ):
-        self.ktemp.raw_prev     = self.ktemp.raw_curr
-        self.ktemp.raw_curr     = raw
-        self.ktemp.digC_prev    = self.ktemp.digC_curr
-        self.ktemp.digC_curr    = digC
-        #self.y
-        print('digc, raw: ', digc, raw )
+    def trim_drift_temp( self, digc, raw ):
+        self.ktemp.raw_1        = self.ktemp.raw_0
+        self.ktemp.raw_0        = raw
+        self.ktemp.digc_1       = self.ktemp.digc_0
+        self.ktemp.digc_0       = digc
+        self.trim_ktemp_update()
+
+    def trim_ktemp_update(self):
+        if (self.ktemp.raw_0 - self.ktemp.raw_1) != 0.0:
+            self.ktemp.k            = (self.ktemp.digc_0 - self.ktemp.digc_1) / (self.ktemp.raw_0 - self.ktemp.raw_1)
 
 
     def trim_kpres( self, hpa ):
@@ -278,7 +281,7 @@ class Sensor:
 
 
     def trim_update(self):
-        if 0.0 != (self.p1_raw - self.p0_raw):
+        if (self.p1_raw - self.p0_raw) != 0.0:
             self.tg     = (self.p1_ppm - self.p0_ppm) / (self.p1_raw - self.p0_raw)
             self.offset = self.p1_ppm - (self.p1_raw * self.tg)
 

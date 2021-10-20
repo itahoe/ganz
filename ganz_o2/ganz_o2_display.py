@@ -94,8 +94,7 @@ class Callback:
             self.cfg['SENSOR']['offset'] = str( self.sens.offset )
             self.cfg['SENSOR']['p0_raw'] = str( self.sens.p0_raw )
             self.cfg['SENSOR']['p1_raw'] = str( self.sens.p1_raw )
-            with open( self.cfg['DEFAULT']['filename'], "w" ) as configfile:
-                self.cfg.write( configfile )
+            with open( self.cfg['DEFAULT']['filename'], "w" ) as configfile: self.cfg.write( configfile )
 
         elif label == 'P ZERO':
             self.sens.trim_p0()
@@ -104,11 +103,16 @@ class Callback:
             self.cfg['SENSOR']['offset'] = str( self.sens.offset )
             self.cfg['SENSOR']['p0_raw'] = str( self.sens.p0_raw )
             self.cfg['SENSOR']['p1_raw'] = str( self.sens.p1_raw )
-            with open( self.cfg['DEFAULT']['filename'], "w" ) as configfile:
-                self.cfg.write( configfile )
+            with open( self.cfg['DEFAULT']['filename'], "w" ) as configfile: self.cfg.write( configfile )
 
         elif label == 'K TEMP':
-            self.sens.trim_drift_temp( self.sens.meas.temp_digC,  self.sens.y[-1] )
+            self.sens.trim_drift_temp( self.sens.meas.temp_digC,  self.sens.y )
+            print( 'K TEMP: ', self.sens.ktemp.raw_0, self.sens.ktemp.digc_0, self.sens.ktemp.raw_1, self.sens.ktemp.digc_1 )
+            self.cfg['SENSOR']['ktemp_raw_0'    ] = str( self.sens.ktemp.raw_0      )
+            self.cfg['SENSOR']['ktemp_raw_1'    ] = str( self.sens.ktemp.raw_1      )
+            self.cfg['SENSOR']['ktemp_digc_0'   ] = str( self.sens.ktemp.digc_0     )
+            self.cfg['SENSOR']['ktemp_digc_1'   ] = str( self.sens.ktemp.digc_1     )
+            with open( self.cfg['DEFAULT']['filename'], "w" ) as configfile: self.cfg.write( configfile )
 
         elif label == 'K PRES':
             m       = self.sens.read()
