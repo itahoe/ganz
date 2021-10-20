@@ -57,7 +57,7 @@ class Sensor:
                                             'firmware_id',
                                             'serial_number' ])
 
-        __slots__                       = 'y'
+        __slots__                       = 'y', 'p',
 
         self.sts                        = SensorStatus()
         self.meas                       = SensorMeasure()
@@ -69,11 +69,11 @@ class Sensor:
         self.meas.temp_digC             = None
         self.meas.pres_hPa              = None
 
-        self.ktemp.k                    = float()
-        self.ktemp.raw_0                = float()
-        self.ktemp.raw_1                = float()
-        self.ktemp.digc_0               = float()
-        self.ktemp.digc_1               = float()
+        #self.ktemp.k                    = float()
+        #self.ktemp.raw_0                = float()
+        #self.ktemp.raw_1                = float()
+        #self.ktemp.digc_0               = float()
+        #self.ktemp.digc_1               = float()
 
         self.p0_ppm         = cfg.getfloat('p0_ppm')
         self.p0_raw         = cfg.getfloat('p0_raw')
@@ -118,6 +118,7 @@ class Sensor:
         self.xn             = [0.0] * len(self.taps)
         self.x              = [0.0] * len(self.taps)
         self.tn             = [0.0] * len(self.taps)
+        self.pn             = [0.0] * len(self.taps)
 
         print( '    N:', N )
         print( ' taps:', len(self.taps) )
@@ -234,7 +235,7 @@ class Sensor:
         return float(raw) * (2500/(2**24))
 
 
-    def raw_to_ppm(self, raw, t_digc, p_hpa ):
+    def raw_to_ppm(self, raw, t_digc, hpa ):
         self.xn[1:]     = self.xn[:-1]
         self.xn[0]      = raw
 
@@ -245,8 +246,11 @@ class Sensor:
         t_offset        = self.afe_drift_t * t_digc
         self.t          = t[-1] + t_offset
 
+        p               = lfilter(self.taps, 1.0, self.pn )
+        p_offset        = self.kpres.k * hpa
+
         y               = lfilter(self.taps, 1.0, self.xn )
-        self.y          = y[-1] + self.t
+        self.y          = y[-1] + self.t - p_offset
 
         ppm = self.offset + (self.tg * self.y)
 
