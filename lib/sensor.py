@@ -28,16 +28,6 @@ class   SensorStatus:
                         'adc_vref', 'adc_res_bits',                         \
                         'raw2ppm_fv', 'raw2ppm_ft', 'raw2ppm_fp',
 
-class   SensorHead:
-    __slots__       =   'device_id',        \
-                        'hardware_id',      \
-                        'firmware_id',      \
-                        'serial_number',    \
-
-class   SensorKtemp:
-    __slots__       =   'raw_curr', 'raw_prev',             \
-                        'digC_curr', 'digC_prev',           \
-
 
 ###############################################################################
 # SENSOR
@@ -55,37 +45,28 @@ class Sensor:
                         'AFE_CTL_UNIPOLAR'          :1,
                         'AFE_CTL_BUFFER_ENABLE'     :2,     }
 
-        '''
         self.config     = dict.fromkeys([   'device_id',
                                             'hardware_id',
                                             'firmware_id',
                                             'serial_number' ])
-        '''
-        self.sts                = SensorStatus()
-        self.meas               = SensorMeasure()
-        self.head               = SensorHead()
-        self.ktemp              = SensorKtemp()
 
-        self.meas.adc_raw       = None
-        self.meas.adc_mV        = None
-        self.meas.temp_digC     = None
-        self.meas.pres_hPa      = None
+        self.sts                        = SensorStatus()
+        self.meas                       = SensorMeasure()
+
+        self.meas.adc_raw               = None
+        self.meas.adc_mV                = None
+        self.meas.temp_digC             = None
+        self.meas.pres_hPa              = None
 
 
-        self.p0_ppm             = cfg.getfloat('p0_ppm')
-        self.p0_raw             = cfg.getfloat('p0_raw')
-        self.p1_ppm             = cfg.getfloat('p1_ppm')
-        self.p1_raw             = cfg.getfloat('p1_raw')
+        self.p0_ppm         = cfg.getfloat('p0_ppm')
+        self.p0_raw         = cfg.getfloat('p0_raw')
+        self.p1_ppm         = cfg.getfloat('p1_ppm')
+        self.p1_raw         = cfg.getfloat('p1_raw')
         self.trim_update()
 
         #self.k_temp         = cfg.getfloat('afe_drift_t')
         self.afe_drift_t    = cfg.getfloat('afe_drift_t')
-
-        self.ktemp.raw_curr     = None
-        self.ktemp.raw_prev     = None
-        self.ktemp.digC_curr    = None
-        self.ktemp.digC_prev    = None
-
 
         #######################################################################
         # LPF INIT
@@ -163,54 +144,47 @@ class Sensor:
         return slope
 
 
-    def read_head(self):
+    def read_config(self):
         d = self.master.execute(    slave               = self.modbus_address,
                                     function_code       = cst.READ_HOLDING_REGISTERS,
                                     starting_address    = 0,
                                     quantity_of_x       = 16,
-                                    data_format         = '>HHbbbbbbbbbbbbHHHHHHHH' )
+                                    data_format         = '>hhhhhhhhhhhhhhhh' )
 
-        #self.head.device_id     = "%02X%02X%02X%02X" % ( d[ 0], d[ 1], d[ 2], d[ 3] )
-        #self.head.hardware_id   = "%02X%02X%02X%02X" % ( d[ 3], d[ 2], d[ 5], d[ 4] )
-        #self.head.serial_number = "%04X%04X%04X%04X%04X%04X%04X%04X" % ( d[16], d[17], d[18], d[19], d[20], d[21], d[22], d[23]  )
+        self.config['device_id'     ]   = str(      d[ 0] + d[ 1])
+        self.config['hardware_id'   ]   = str(      d[ 2] + d[ 3])
+        self.config['firmware_id'   ]   = int(      d[ 4] + d[ 5] + d[ 6])
+        self.config['serial_number' ]   = int(      d[ 8] + d[ 9] + d[10] + d[11] + d[12] + d[13] + d[14] + d[15])
 
-        self.head.device_id     = "%04X%04X" % ( d[ 0], d[ 1] )
-        self.head.hardware_id   = "%c%c%c%c" % ( d[ 3], d[ 2], d[ 5], d[ 4] )
-        self.head.firmware_id   = "%c%c%c%c%c%c" % ( d[ 7], d[ 6], d[ 9], d[ 8], d[11], d[10] )
-        self.head.serial_number = "%04X%04X%04X%04X%04X%04X%04X%04X" % ( d[14], d[15], d[16], d[17], d[18], d[19], d[20], d[21]  )
+        self.measure['error_code'   ]   = int(      d[ 0])
 
-        return self.head
+        return self.measure
 
 
     def read(self):
-        try:
-            d = self.master.execute(    slave               = self.modbus_address,
-                                        function_code       = cst.READ_HOLDING_REGISTERS,
-                                        starting_address    = 16,
-                                        quantity_of_x       = 32,
-                                        data_format         = '>hhhhhhhhhhffffffhhiiihh' )
+        d = self.master.execute(    slave               = self.modbus_address,
+                                    function_code       = cst.READ_HOLDING_REGISTERS,
+                                    starting_address    = 16,
+                                    quantity_of_x       = 32,
+                                    data_format         = '>hhhhhhhhhhffffffhhiiihh' )
 
-            self.sts.error_code     = int(      d[ 0])
-            self.sts.starts_cnt     = int(      d[ 1])
-            self.sts.adc_vref       = int(      d[ 4])
-            self.sts.adc_res_bits   = int(      d[ 5])
-            self.meas.mcu_digc      = int(      d[ 8])
-            self.meas.mcu_vdda      = int(      d[ 9])
-            self.sts.raw2ppm_fv     = float(    d[10])
-            self.sts.raw2ppm_ft     = float(    d[11])
-            self.sts.raw2ppm_fp     = float(    d[12])
-            self.meas.ppm_hw        = float(    d[13])
-            self.meas.temp_digC     = float(    d[14])
-            self.meas.pres_hPa      = float(    d[15])
-            self.meas.adc_raw       = int(      d[18])
-            self.meas.temp_raw      = int(      d[19])
-            self.meas.pres_raw      = int(      d[20])
-            self.meas.slope_raw     = int(      d[21])
-            self.meas.offset_raw    = int(      d[22])
-
-        except:
-            print( 'MODBUS ERR @ reg=16 len=32' )    
-            pass
+        self.sts.error_code     = int(      d[ 0])
+        self.sts.starts_cnt     = int(      d[ 1])
+        self.sts.adc_vref       = int(      d[ 4])
+        self.sts.adc_res_bits   = int(      d[ 5])
+        self.meas.mcu_digc      = int(      d[ 8])
+        self.meas.mcu_vdda      = int(      d[ 9])
+        self.sts.raw2ppm_fv     = float(    d[10])
+        self.sts.raw2ppm_ft     = float(    d[11])
+        self.sts.raw2ppm_fp     = float(    d[12])
+        self.meas.ppm_hw        = float(    d[13])
+        self.meas.temp_digC     = float(    d[14])
+        self.meas.pres_hPa      = float(    d[15])
+        self.meas.adc_raw       = int(      d[18])
+        self.meas.temp_raw      = int(      d[19])
+        self.meas.pres_raw      = int(      d[20])
+        self.meas.slope_raw     = int(      d[21])
+        self.meas.offset_raw    = int(      d[22])
 
         return self.meas
 
@@ -228,6 +202,26 @@ class Sensor:
     def raw_to_mV(self, raw):
         return float(raw) * (2500/(2**24))
 
+    '''
+    def raw_to_ppm(self, raw, t_digc, p_hpa ):
+        t_offset        = self.afe_drift_t * t_digc
+
+        self.xn[1:]     = self.xn[:-1]
+        self.xn[0]      = raw
+
+        self.tn[1:]     = self.tn[:-1]
+        self.tn[0]      = t_digc
+
+        t               = lfilter(self.taps, 1.0, self.tn )
+        self.t          = t[-1] + t_offset
+
+        y               = lfilter(self.taps, 1.0, self.xn )
+        self.y          = y[-1] + self.t
+
+        ppm = self.offset + (self.tg * self.y)
+
+        return( ppm )
+    '''
 
     def raw_to_ppm(self, raw, t_digc, p_hpa ):
         self.xn[1:]     = self.xn[:-1]
@@ -243,7 +237,7 @@ class Sensor:
         y               = lfilter(self.taps, 1.0, self.xn )
         self.y          = y[-1] + self.t
 
-        ppm             = self.offset + (self.tg * self.y)
+        ppm = self.offset + (self.tg * self.y)
 
         return( ppm )
 
@@ -254,14 +248,16 @@ class Sensor:
         self.ktemp.digC_prev    = self.ktemp.digC_curr
         self.ktemp.digC_curr    = digC
         #self.y
-        print('digc, raw: ', digC, raw )
+        print('digc, raw: ', digc, raw )
 
 
-    def trim_drift_pres( self, hpa, raw ):
-        print('hpa, raw: ', hpa, raw )
+    def trim_kpres( self, hpa ):
+        print('trim_kpres: ', hpa )
 
 
     def rmse( self, data ):
+        #self.sens.rmse( self.graph.ydata['O2'] )
+
         average = 0
         xsum    = 0
         for x in data:   average += x
@@ -282,13 +278,9 @@ class Sensor:
 
 
     def trim_update(self):
-        #print( 'TRIM: ', self.p0_ppm, self.p0_raw, self.p1_ppm, self.p1_raw )
-        #print( 'TRIM: ', self.offset, self.tg )
-        if (0.0 != (self.p1_raw - self.p0_raw)):
+        if 0.0 != (self.p1_raw - self.p0_raw):
             self.tg     = (self.p1_ppm - self.p0_ppm) / (self.p1_raw - self.p0_raw)
             self.offset = self.p1_ppm - (self.p1_raw * self.tg)
-        #print( self.tg, self.offset )
-        #return( self.tg, self.offset , self.p0_ppm, self.p0_raw, self.p1_ppm, self.p1_raw )
 
 
 ###############################################################################
@@ -324,30 +316,60 @@ class Callback:
         with open( self.cfg['DEFAULT']['filename'], "w" ) as configfile:
             self.cfg.write( configfile )
 
+    '''
+    def timer_cb(self, sens, graph, txt ):
+
+        m   = sens.read()
+        ppm = sens.raw_to_ppm( m['adc_raw'], m['t_digc'], m['p_hpa'] )
+
+        graph.push( graph.buf['timestamp'], datetime.now()  )
+        graph.push( graph.buf['adc_raw'  ], m['adc_raw' ]   )
+        graph.push( graph.buf['t_digc'   ], m['t_digc'  ]   )
+        graph.push( graph.buf['p_hpa'    ], m['p_hpa'   ]   )
+        graph.push( graph.buf['ppm'      ], ppm             )
+
+        txt['ADC'   ].set_text( '{:#4.2f} mV'   .format( sens.raw_to_mV(m['adc_raw' ])  ) )
+        txt['PPM'   ].set_text( '{:#.2f} PPM'   .format( ppm                            ) )
+        txt['TEMP'  ].set_text( '{:#4.2f} °C'   .format( m['t_digc' ]                   ) )
+        txt['PRES'  ].set_text( '{:#4.2f} hPa'  .format( m['p_hpa' ]                    ) )
+
+        #graph.plot()
+        ybufs   = [ graph.buf['ppm'], graph.buf['adc_raw'], graph.buf['t_digc'], graph.buf['p_hpa'] ]
+        graph.plot( graph.buf['timestamp'], ybufs )
+    '''
 
     def timer( self, txt ):
-        m                           = self.sens.read()
-        self.sens.meas.adc_mV       = self.sens.raw_to_mV( self.sens.meas.adc_raw )
-        self.sens.meas.ppm_sw       = self.sens.raw_to_ppm( self.sens.meas.adc_raw,
-                                                            self.sens.meas.temp_digC,
-                                                            self.sens.meas.pres_hPa )
+        m       = self.sens.read()
+        ppm     = self.sens.raw_to_ppm( m['adc_raw'], m['t_digc'], m['p_hpa'] )
+        adc_mV  = self.sens.raw_to_mV( m['adc_raw'] )
 
-        rmse = self.sens.rmse( self.graph.ydata['O2'] )
+        #rmse = np.std(self.graph.ydata['O2'])
 
-        self.graph.push( self.graph.xdata,                  datetime.now()              )
-        self.graph.push( self.graph.ydata['O2'        ],    self.sens.meas.ppm_sw       )
-        self.graph.push( self.graph.ydata['ADC RAW'   ],    self.sens.meas.adc_raw      )
-        self.graph.push( self.graph.ydata['ADC mV'    ],    self.sens.meas.adc_mV       )
-        self.graph.push( self.graph.ydata['t DigC'    ],    self.sens.meas.temp_digC    )
-        self.graph.push( self.graph.ydata['P hPa'     ],    self.sens.meas.pres_hPa     )
+        average = 0
+        xsum    = 0
+        for x in self.graph.ydata['O2']:   average += x
+        average /= len(self.graph.ydata['O2'])
+        for x in self.graph.ydata['O2']:   xsum += (x - average)**2
+        xsum    /= ( len(self.graph.ydata['O2']) - 1)
+        rmse = math.sqrt( xsum )
+
+
+        self.graph.push( self.graph.xdata,                  datetime.now()  )
+        self.graph.push( self.graph.ydata['O2'        ],    ppm             )
+        self.graph.push( self.graph.ydata['ADC RAW'   ],    m['adc_raw' ]   )
+        self.graph.push( self.graph.ydata['ADC mV'    ],    adc_mV          )
+        self.graph.push( self.graph.ydata['t DIGC'    ],    m['t_digc'  ]   )
+        self.graph.push( self.graph.ydata['P hPa'     ],    m['p_hpa'   ]   )
 
         self.graph.plot()
 
-        txt['O2'    ].set_text( '{:#.2f} PPM'   .format( self.sens.meas.ppm_sw          ) )
-        txt['ADC'   ].set_text( '{:#4.2f} mV'   .format( self.sens.meas.adc_mV          ) )
-        txt['TEMP'  ].set_text( '{:#4.2f} °C'   .format( self.sens.meas.temp_digC       ) )
-        txt['PRES'  ].set_text( '{:#4.2f} hPa'  .format( self.sens.meas.pres_hPa        ) )
+        txt['O2'    ].set_text( '{:#.2f} PPM'   .format( ppm                            ) )
+        txt['ADC'   ].set_text( '{:#4.2f} mV'   .format( sens.raw_to_mV(m['adc_raw' ])  ) )
+        txt['TEMP'  ].set_text( '{:#4.2f} °C'   .format( m['t_digc' ]                   ) )
+        txt['PRES'  ].set_text( '{:#4.2f} hPa'  .format( m['p_hpa' ]                    ) )
         txt['RMS'   ].set_text( '{:#4.2f}'      .format( rmse ) )
+        #txt['SLOPE' ].set_text( '{:#4.2f}'    .format( sd ) )
+        #txt['P HIGH'].set_text( '{:#4.2f}'      .format( rmse ) )
 
 
     def button( self, event, lbl ):
@@ -381,34 +403,13 @@ if __name__ == '__main__':
 
     ###########################################################################
     # GRAPH
-    o2_min      = int( cfg['GRAPH'  ]['o2_min'      ] )
-    o2_max      = int( cfg['GRAPH'  ]['o2_max'      ] )
-    adc_raw_min = int( cfg['GRAPH'  ]['adc_raw_min' ] )
-    adc_raw_max = int( cfg['GRAPH'  ]['adc_raw_max' ] )
-    t_digc_min  = int( cfg['GRAPH'  ]['t_digc_min'  ] )
-    t_digc_max  = int( cfg['GRAPH'  ]['t_digc_max'  ] )
-    p_hpa_min   = int( cfg['GRAPH'  ]['p_hpa_min'   ] )
-    p_hpa_max   = int( cfg['GRAPH'  ]['p_hpa_max'   ] )
-    adc_mv_min  = int( cfg['GRAPH'  ]['adc_mv_min'  ] )
-    adc_mv_max  = int( cfg['GRAPH'  ]['adc_mv_max'  ] )
-
-    param   = [
-    #   name        ymin            ymax            color       linestyle   linewidth
-    (   'O2',       o2_min,         o2_max,         'blue',     'dashed',   1,      ),
-    (   'ADC RAW',  adc_raw_min,    adc_raw_max,    'orange',   'solid',    1,      ),
-    (   'ADC mV',   adc_mv_min,     adc_mv_max,     'orange',   'dotted',   1,      ),
-    (   't DigC',   t_digc_min,     t_digc_max,     'red',      'dashed',   1,      ),
-    (   'P hPa',    p_hpa_min,      p_hpa_max,      'green',    'dashdot',  1,      ), ]
-
-    '''
     param   = [
     #   name        ymin    ymax        color       linestyle   linewidth
     (   'O2',       -50,    150,        'blue',     'dashed',   1,      ),
     (   'ADC RAW',  0,      10000000,   'orange',   'dashed',   1,      ),
     (   'ADC mV',   0,      2500,       'orange',   'dotted',   1,      ),
-    (   't DigC',   15,     45,         'red',      'dashdot',  1,      ),
+    (   't DIGC',   15,     45,         'red',      'dashdot',  1,      ),
     (   'P hPa',    950,    1050,       'green',    'dotted',   1,      ), ]
-    '''
 
     xlen    = cfg.getint( 'GRAPH', 'axlen' )
     ax      = fig.add_axes( [0.05, 0.05, 0.70, 0.60], axes_class=HostAxes )

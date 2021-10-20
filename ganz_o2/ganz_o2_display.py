@@ -57,16 +57,20 @@ class Callback:
 
     def timer( self ):
         m                           = self.sens.read()
+        #self.sens.meas.adc_raw      = m['adc_raw' ]
+        #self.sens.meas.temp_digC    = m['t_digc'  ]
+        #self.sens.meas.pres_hPa     = m['p_hpa'   ]
         self.sens.meas.adc_mV       = self.sens.raw_to_mV( self.sens.meas.adc_raw )
         self.sens.meas.ppm_sw       = self.sens.raw_to_ppm( self.sens.meas.adc_raw,
                                                             self.sens.meas.temp_digC,
                                                             self.sens.meas.pres_hPa )
 
         #rmse = np.std( self.graph.ydata['O2'] )
-        rmse = self.sens.rmse( self.graph.ydata['O2'] )
+        rmse = self.sens.rmse( self.graph.ydata['GAS'] )
 
         self.graph.push( self.graph.xdata,                  datetime.now()              )
-        self.graph.push( self.graph.ydata['O2'        ],    self.sens.meas.ppm_sw       )
+        self.graph.push( self.graph.ydata['GAS'       ],    self.sens.meas.ppm_sw       )
+        self.graph.push( self.graph.ydata['GAS F1'    ],    0.0                         )
         self.graph.push( self.graph.ydata['ADC RAW'   ],    self.sens.meas.adc_raw      )
         self.graph.push( self.graph.ydata['ADC mV'    ],    self.sens.meas.adc_mV       )
         self.graph.push( self.graph.ydata['t DigC'    ],    self.sens.meas.temp_digC    )
@@ -104,13 +108,12 @@ class Callback:
                 self.cfg.write( configfile )
 
         elif label == 'K TEMP':
-            #self.sens.trim_drift_temp( self.sens.meas.temp_digC,  self.sens.y[-1] )
-            self.sens.trim_drift_temp( self.sens.meas.temp_digC,  self.sens.y )
+            self.sens.trim_drift_temp( self.sens.meas.temp_digC,  self.sens.y[-1] )
 
         elif label == 'K PRES':
             m       = self.sens.read()
             #print( 'p_hpa: ', type(m['p_hpa']) )
-            self.sens.trim_drift_pres( self.sens.meas.pres_hPa,  self.sens.y  )
+            self.sens.trim_kpres( m['p_hpa'] )
 
         else:
             print( label )
@@ -140,15 +143,10 @@ if __name__ == '__main__':
     ###########################################################################
     # SENSOR
     sens    = Sensor( cfg['SENSOR'] )
-    sens.read_head()
-    print( '    device_id: ', sens.head.device_id       )
-    print( '  hardware_id: ', sens.head.hardware_id     )
-    print( '  firmware_id: ', sens.head.firmware_id     )
-    print( 'serial_number: ', sens.head.serial_number   )
-
 
     ###########################################################################
     # GRAPH
+
     o2_min      = int( cfg['GRAPH'  ]['o2_min'      ] )
     o2_max      = int( cfg['GRAPH'  ]['o2_max'      ] )
     adc_raw_min = int( cfg['GRAPH'  ]['adc_raw_min' ] )
@@ -162,7 +160,8 @@ if __name__ == '__main__':
 
     param   = [
     #   name        ymin            ymax            color       linestyle   linewidth
-    (   'O2',       o2_min,         o2_max,         'blue',     'dashed',   1,      ),
+    (   'GAS',      o2_min,         o2_max,         'blue',     'dashed',   1,      ),
+    (   'GAS F1',   o2_min,         o2_max,         'royalblue','dashed',   1,      ),
     (   'ADC RAW',  adc_raw_min,    adc_raw_max,    'orange',   'solid',    1,      ),
     (   'ADC mV',   adc_mv_min,     adc_mv_max,     'orange',   'dotted',   1,      ),
     (   't DigC',   t_digc_min,     t_digc_max,     'red',      'dashed',   1,      ),
@@ -173,7 +172,7 @@ if __name__ == '__main__':
     graph   = Graph( ax, xlen, param )
     graph.init_timestamp( graph.xdata )
 
-    graph.ydata['O2']   = [0.0 for a in range( len(graph.ydata['O2']))]
+    graph.ydata['GAS']  = [0.0 for a in range( len(graph.ydata['GAS']))]
     #print( graph.ydata['t DIGC'])
 
     ###########################################################################

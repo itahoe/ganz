@@ -164,43 +164,38 @@ class Callback:
 
     def __init__( self, sens, graph ):
         self.sens   = sens
-        self.graph  = graph
+        self.g      = graph
 
 
     def timer( self ):
-        m                           = self.sens.read()
-        self.sens.meas.adc_mV       = self.sens.raw_to_mV( self.sens.meas.adc_raw )
-        self.sens.meas.ppm_sw       = self.sens.raw_to_ppm( self.sens.meas.adc_raw,
-                                                            self.sens.meas.temp_digC,
-                                                            self.sens.meas.pres_hPa )
+        m       = self.sens.read()
+        ppm     = self.sens.raw_to_ppm( m['adc_raw'], m['t_digc'], m['p_hpa'] )
+        adc_mV  = self.sens.raw_to_mV( m['adc_raw'] )
 
-        #rmse = np.std( self.graph.ydata['O2'] )
-        rmse = self.sens.rmse( self.graph.ydata['O2'] )
+        self.g.push( self.g.xdata,                  datetime.now()  )
+        self.g.push( self.g.ydata['PPM'       ],    ppm             )
+        self.g.push( self.g.ydata['ADC RAW'   ],    m['adc_raw' ]   )
+        self.g.push( self.g.ydata['ADC mV'    ],    adc_mV          )
+        self.g.push( self.g.ydata['t DIGC'    ],    m['t_digc'  ]   )
+        self.g.push( self.g.ydata['P hPa'     ],    m['p_hpa'   ]   )
 
-        self.graph.push( self.graph.xdata,                  datetime.now()              )
-        self.graph.push( self.graph.ydata['O2'        ],    self.sens.meas.ppm_sw       )
-        self.graph.push( self.graph.ydata['ADC RAW'   ],    self.sens.meas.adc_raw      )
-        self.graph.push( self.graph.ydata['ADC mV'    ],    self.sens.meas.adc_mV       )
-        self.graph.push( self.graph.ydata['t DigC'    ],    self.sens.meas.temp_digC    )
-        self.graph.push( self.graph.ydata['P hPa'     ],    self.sens.meas.pres_hPa     )
-
-        self.graph.plot()
+        self.g.plot()
 
 
 ###############################################################################
 # MAIN
 if __name__ == '__main__':
 
-    from sensor    import Sensor
+    from o2mb_sensor    import Sensor
 
     ###########################################################################
     # CONFIG
     cfg     = ConfigParser()
-    cfg['DEFAULT']['filename']  = "ganz.ini"
+    cfg['DEFAULT']['filename']  = "o2mb.ini"
     cfg.read( cfg['DEFAULT']['filename'] )
 
-    #cfg_grph = ConfigParser()
-    #cfg_grph.read( "o2mb_graph.ini")
+    cfg_grph = ConfigParser()
+    cfg_grph.read( "o2mb_graph.ini")
 
 
     title   =   cfg['SENSOR']['modbus_port'] + '@' +            \
@@ -213,40 +208,18 @@ if __name__ == '__main__':
 
     ###########################################################################
     # GRAPH INIT
-    o2_min      = int( cfg['GRAPH'  ]['o2_min'      ] )
-    o2_max      = int( cfg['GRAPH'  ]['o2_max'      ] )
-    adc_raw_min = int( cfg['GRAPH'  ]['adc_raw_min' ] )
-    adc_raw_max = int( cfg['GRAPH'  ]['adc_raw_max' ] )
-    t_digc_min  = int( cfg['GRAPH'  ]['t_digc_min'  ] )
-    t_digc_max  = int( cfg['GRAPH'  ]['t_digc_max'  ] )
-    p_hpa_min   = int( cfg['GRAPH'  ]['p_hpa_min'   ] )
-    p_hpa_max   = int( cfg['GRAPH'  ]['p_hpa_max'   ] )
-    adc_mv_min  = int( cfg['GRAPH'  ]['adc_mv_min'  ] )
-    adc_mv_max  = int( cfg['GRAPH'  ]['adc_mv_max'  ] )
-
-
-    param   = [
-    #   name        ymin            ymax            color       linestyle   linewidth
-    (   'O2',       o2_min,         o2_max,         'blue',     'dashed',   1,      ),
-    (   'ADC RAW',  adc_raw_min,    adc_raw_max,    'orange',   'solid',    1,      ),
-    (   'ADC mV',   adc_mv_min,     adc_mv_max,     'orange',   'dotted',   1,      ),
-    (   't DigC',   t_digc_min,     t_digc_max,     'red',      'dashed',   1,      ),
-    (   'P hPa',    p_hpa_min,      p_hpa_max,      'green',    'dashdot',  1,      ), ]
-    '''
     param   = [
     #   name        ymin    ymax        color       linestyle   linewidth
-    (   'O2',       -50,    150,        'blue',     'dashed',   1,      ),
+    (   'PPM',      -50,    150,        'blue',     'dashed',   1,      ),
     (   'ADC RAW',  0,      10000000,   'orange',   'solid',    1,      ),
     (   'ADC mV',   0,      2500,       'cyan',     'solid',    1,      ),
-    (   't DigC',   15,     45,         'red',      'dashdot',  1,      ),
+    (   't DIGC',   15,     45,         'red',      'dashdot',  1,      ),
     (   'P hPa',    950,    1050,       'green',    'dotted',   1,      ), ]
-    '''
 
     xlen    = cfg.getint( 'GRAPH', 'axlen' )
     ax      = fig.add_axes( [0.05, 0.05, 0.70, 0.90], axes_class=HostAxes )
-    graph   = Graph( ax, xlen, param )
+    graph   = O2mb_graph( ax, xlen, param )
     graph.init_timestamp( graph.xdata )
-    graph.ydata['O2']   = [0.0 for a in range( len(graph.ydata['O2']))]
 
     ###########################################################################
     # TIMER
