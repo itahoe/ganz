@@ -115,9 +115,13 @@ class Callback:
             with open( self.cfg['DEFAULT']['filename'], "w" ) as configfile: self.cfg.write( configfile )
 
         elif label == 'K PRES':
-            m       = self.sens.read()
-            #print( 'p_hpa: ', type(m['p_hpa']) )
-            self.sens.trim_kpres( m['p_hpa'] )
+            self.sens.kpres_update( self.sens.y, self.sens.meas.pres_hPa )
+            print( 'K PRES: ', self.sens.kpres.raw_0, self.sens.kpres.hpa_0, self.sens.kpres.raw_1, self.sens.kpres.hpa_1 )
+            self.cfg['SENSOR']['kpres_raw_0'    ] = str( self.sens.kpres.raw_0      )
+            self.cfg['SENSOR']['kpres_raw_1'    ] = str( self.sens.kpres.raw_1      )
+            self.cfg['SENSOR']['kpres_hpa_0'    ] = str( self.sens.kpres.hpa_0      )
+            self.cfg['SENSOR']['kpres_hpa_1'    ] = str( self.sens.kpres.hpa_1      )
+            with open( self.cfg['DEFAULT']['filename'], "w" ) as configfile: self.cfg.write( configfile )
 
         else:
             print( label )
@@ -132,10 +136,6 @@ if __name__ == '__main__':
     cfg     = ConfigParser()
     cfg['DEFAULT']['filename']  = "ganz.ini"
     cfg.read( cfg['DEFAULT']['filename'] )
-
-    #gcfg    = ConfigParser()
-    #gcfg.read( "o2mb_graph.ini")
-
 
     title   =   cfg['SENSOR']['modbus_port'] + '@' +            \
                 cfg['SENSOR']['modbus_baudrate'] + ' ADDR: ' +  \

@@ -264,17 +264,20 @@ def graph_buffer_create(axmax):
 # MAIN
 if __name__ == '__main__':
 
-    cfgfile = "ganz.ini"
     cfg     = ConfigParser()
-    cfg.read( cfgfile )
+    cfg['DEFAULT']['filename']  = "ganz.ini"
+    cfg.read( cfg['DEFAULT']['filename'] )
 
-    cfgsens = cfg['SENSOR']
+
     title   = cfg['SENSOR']['modbus_port'       ] + '@'         + \
               cfg['SENSOR']['modbus_baudrate'   ] + ' ADDR: '   + \
               cfg['SENSOR']['modbus_address'    ]
 
     fig     = plt.figure()
     fig.canvas.manager.set_window_title( title )
+
+    ###########################################################################
+    # SENSOR
     sens    = Sensor( cfg['SENSOR'] )
 
     ax1     = fig.add_axes( [ 0.05, 0.35,  0.60, 0.60 ] )

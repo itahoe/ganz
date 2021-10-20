@@ -1,5 +1,6 @@
 ﻿import numpy as np
 import math
+import sys
 from scipy.signal   import kaiserord, butter, lfilter, lfilter_zi, filtfilt, firwin, freqz
 from graph          import Graph
 from threading      import Timer
@@ -31,6 +32,9 @@ class   SensorStatus:
 class   SensorKtemp:
     __slots__       =   'k', 'raw_0', 'raw_1', 'digc_0', 'digc_1',
 
+class   SensorKpres:
+    __slots__       =   'k', 'raw_0', 'raw_1', 'hpa_0', 'hpa_1',
+
 
 ###############################################################################
 # SENSOR
@@ -58,18 +62,18 @@ class Sensor:
         self.sts                        = SensorStatus()
         self.meas                       = SensorMeasure()
         self.ktemp                      = SensorKtemp()
+        self.kpres                      = SensorKpres()
 
         self.meas.adc_raw               = None
         self.meas.adc_mV                = None
         self.meas.temp_digC             = None
         self.meas.pres_hPa              = None
 
-        self.ktemp.k                    = None
-        self.ktemp.raw_0                = None
-        self.ktemp.raw_1                = None
-        self.ktemp.digc_0               = None
-        self.ktemp.digc_1               = None
-
+        self.ktemp.k                    = float()
+        self.ktemp.raw_0                = float()
+        self.ktemp.raw_1                = float()
+        self.ktemp.digc_0               = float()
+        self.ktemp.digc_1               = float()
 
         self.p0_ppm         = cfg.getfloat('p0_ppm')
         self.p0_raw         = cfg.getfloat('p0_raw')
@@ -83,6 +87,12 @@ class Sensor:
         self.ktemp.digc_0   = cfg.getfloat('ktemp_digc_0')
         self.ktemp.digc_1   = cfg.getfloat('ktemp_digc_1')
         self.trim_ktemp_update()
+
+        self.kpres.raw_0    = cfg.getfloat('kpres_raw_0')
+        self.kpres.raw_1    = cfg.getfloat('kpres_raw_1')
+        self.kpres.hpa_0    = cfg.getfloat('kpres_hpa_0')
+        self.kpres.hpa_1    = cfg.getfloat('kpres_hpa_1')
+        self.kpres.k        = self.kpres_calc()
 
 
         #self.k_temp         = cfg.getfloat('afe_drift_t')
@@ -132,6 +142,7 @@ class Sensor:
                                     starting_address    = self.hreg['AFE_CONTROL'],
                                     quantity_of_x       = 1,
                                     data_format         = '>h'                      )
+
 
     def get_offset(self):
         data = self.master.execute( slave               = self.modbus_address,
@@ -249,13 +260,25 @@ class Sensor:
         self.ktemp.digc_0       = digc
         self.trim_ktemp_update()
 
+
     def trim_ktemp_update(self):
         if (self.ktemp.raw_0 - self.ktemp.raw_1) != 0.0:
             self.ktemp.k            = (self.ktemp.digc_0 - self.ktemp.digc_1) / (self.ktemp.raw_0 - self.ktemp.raw_1)
 
 
-    def trim_kpres( self, hpa ):
-        print('trim_kpres: ', hpa )
+    def kpres_update( self, raw, hpa ):
+        #print('trim_kpres: ', hpa )
+        self.kpres.raw_1        = self.kpres.raw_0
+        self.kpres.raw_0        = raw
+        self.kpres.hpa_1        = self.kpres.hpa_0
+        self.kpres.hpa_0        = hpa
+        self.kpres.k            = self.kpres_calc()
+
+
+    def kpres_calc( self ):
+        if (self.kpres.raw_0 - self.kpres.raw_1) != 0:
+            return (self.kpres.hpa_0 - self.kpres.hpa_1) / (self.kpres.raw_0 - self.kpres.raw_1)
+        return 0            
 
 
     def rmse( self, data ):
