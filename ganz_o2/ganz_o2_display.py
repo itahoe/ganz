@@ -110,7 +110,7 @@ class Callback:
         elif label == 'K PRES':
             m       = self.sens.read()
             #print( 'p_hpa: ', type(m['p_hpa']) )
-            self.sens.trim_drift_pres( m['p_hpa'] )
+            self.sens.trim_drift_pres( self.sens.meas.pres_hPa,  self.sens.y  )
 
         else:
             print( label )
@@ -149,7 +149,6 @@ if __name__ == '__main__':
 
     ###########################################################################
     # GRAPH
-
     o2_min      = int( cfg['GRAPH'  ]['o2_min'      ] )
     o2_max      = int( cfg['GRAPH'  ]['o2_max'      ] )
     adc_raw_min = int( cfg['GRAPH'  ]['adc_raw_min' ] )
