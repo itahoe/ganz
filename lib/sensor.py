@@ -35,6 +35,9 @@ class   SensorKtemp:
 class   SensorKpres:
     __slots__       =   'k', 'raw_0', 'raw_1', 'hpa_0', 'hpa_1',
 
+class   SensorTrim:
+    __slots__       =    'slope', 'offset',
+
 
 ###############################################################################
 # SENSOR
@@ -69,41 +72,42 @@ class Sensor:
         self.meas.temp_digC             = None
         self.meas.pres_hPa              = None
 
-        #self.ktemp.k                    = float()
-        #self.ktemp.raw_0                = float()
-        #self.ktemp.raw_1                = float()
-        #self.ktemp.digc_0               = float()
-        #self.ktemp.digc_1               = float()
+        ########################################################################
+        # TRIM RESTORE
+        self.trim                       = SensorTrim()
 
-        self.p0_ppm         = cfg.getfloat('p0_ppm')
-        self.p0_raw         = cfg.getfloat('p0_raw')
-        self.p1_ppm         = cfg.getfloat('p1_ppm')
-        self.p1_raw         = cfg.getfloat('p1_raw')
-        self.trim_update()
+        self.p0_ppm         = cfg.getfloat('P ZERO', 'ppm')
+        self.p0_raw         = cfg.getfloat('P ZERO', 'raw')
+        self.p1_ppm         = cfg.getfloat('P HIGH', 'ppm')
+        self.p1_raw         = cfg.getfloat('P HIGH', 'raw')
 
+        self.trim.slope, self.trim.offset    = self.trim_update()
 
-        self.ktemp.raw_0    = cfg.getfloat('ktemp_raw_0')
-        self.ktemp.raw_1    = cfg.getfloat('ktemp_raw_1')
-        self.ktemp.digc_0   = cfg.getfloat('ktemp_digc_0')
-        self.ktemp.digc_1   = cfg.getfloat('ktemp_digc_1')
-        self.trim_ktemp_update()
-
-        self.kpres.raw_0    = cfg.getfloat('kpres_raw_0')
-        self.kpres.raw_1    = cfg.getfloat('kpres_raw_1')
-        self.kpres.hpa_0    = cfg.getfloat('kpres_hpa_0')
-        self.kpres.hpa_1    = cfg.getfloat('kpres_hpa_1')
-        self.kpres.k        = self.kpres_calc()
-
+        ########################################################################
+        # K TEMPERATURE RESTORE
+        #self.ktemp.raw_0    = cfg.getfloat('ktemp_raw_0')
+        #self.ktemp.raw_1    = cfg.getfloat('ktemp_raw_1')
+        #self.ktemp.digc_0   = cfg.getfloat('ktemp_digc_0')
+        #self.ktemp.digc_1   = cfg.getfloat('ktemp_digc_1')
+        #self.trim_ktemp_update()
 
         #self.k_temp         = cfg.getfloat('afe_drift_t')
-        self.afe_drift_t    = cfg.getfloat('afe_drift_t')
+        #self.afe_drift_t    = cfg.getfloat('afe_drift_t')
 
-        #######################################################################
+        ########################################################################
+        # K PRESSURE RESTORE
+        #self.kpres.raw_0    = cfg.getfloat('kpres_raw_0')
+        #self.kpres.raw_1    = cfg.getfloat('kpres_raw_1')
+        #self.kpres.hpa_0    = cfg.getfloat('kpres_hpa_0')
+        #self.kpres.hpa_1    = cfg.getfloat('kpres_hpa_1')
+        #self.kpres.k        = self.kpres_calc()
+
+        ########################################################################
         # LPF INIT
-        lpf_sample_rate_hz  = cfg.getfloat('lpf_sample_rate_hz')
-        lpf_width_hz        = cfg.getfloat('lpf_width_hz')
-        lpf_ripple_db       = cfg.getfloat('lpf_ripple_db')
-        lpf_cutoff_hz       = cfg.getfloat('lpf_cutoff_hz')
+        lpf_sample_rate_hz  = cfg.getfloat('LPF', 'sample_rate_hz')
+        lpf_width_hz        = cfg.getfloat('LPF', 'width_hz')
+        lpf_ripple_db       = cfg.getfloat('LPF', 'ripple_db')
+        lpf_cutoff_hz       = cfg.getfloat('LPF', 'cutoff_hz')
 
         nyq_rate            = lpf_sample_rate_hz / 2.0
         N, beta             = kaiserord(lpf_ripple_db, lpf_width_hz/ nyq_rate)
@@ -126,9 +130,9 @@ class Sensor:
 
         #######################################################################
         # MODBUS INIT
-        self.modbus_address = cfg.getint('modbus_address')
-        self.master     = modbus_rtu.RtuMaster( serial.Serial(  port        = cfg['modbus_port'],
-                                                                baudrate    = cfg.getint('modbus_baudrate'),
+        self.modbus_address = cfg.getint('MODBUS', 'address')
+        self.master     = modbus_rtu.RtuMaster( serial.Serial(  port        = cfg.get('MODBUS', 'port'),
+                                                                baudrate    = cfg.getint('MODBUS', 'baudrate'),
                                                                 bytesize=8,
                                                                 parity='N',
                                                                 stopbits=1,
@@ -242,17 +246,18 @@ class Sensor:
         self.tn[1:]     = self.tn[:-1]
         self.tn[0]      = t_digc
 
-        t               = lfilter(self.taps, 1.0, self.tn )
-        t_offset        = self.afe_drift_t * t_digc
-        self.t          = t[-1] + t_offset
+        #t               = lfilter(self.taps, 1.0, self.tn )
+        #t_offset        = self.afe_drift_t * t_digc
+        #self.t          = t[-1] + t_offset
 
-        p               = lfilter(self.taps, 1.0, self.pn )
-        p_offset        = self.kpres.k * hpa
+        #p               = lfilter(self.taps, 1.0, self.pn )
+        #p_offset        = self.kpres.k * hpa
 
         y               = lfilter(self.taps, 1.0, self.xn )
-        self.y          = y[-1] + self.t - p_offset
+        #self.y          = y[-1] + self.t - p_offset
+        self.y          = y[-1]
 
-        ppm = self.offset + (self.tg * self.y)
+        ppm = self.trim.offset + (self.trim.slope * self.y)
 
         return( ppm )
 
@@ -297,6 +302,7 @@ class Sensor:
         return math.sqrt( xsum )
 
 
+    '''
     def trim_p0(self):
         self.p0_raw = self.y
         self.trim_update()
@@ -311,6 +317,30 @@ class Sensor:
         if (self.p1_raw - self.p0_raw) != 0.0:
             self.tg     = (self.p1_ppm - self.p0_ppm) / (self.p1_raw - self.p0_raw)
             self.offset = self.p1_ppm - (self.p1_raw * self.tg)
+    '''
+    def trim_p0(self):
+        self.p0_raw = self.y
+        #self.trim_update()
+        self.trim.slope, self.trim.offset = self.trim_update()
+
+
+    def trim_p1(self):
+        self.p1_raw = self.y
+        #self.trim_update()
+        self.trim.slope, self.trim.offset = self.trim_update()
+
+
+    def trim_update(self):
+        if 0.0 != (self.p1_raw - self.p0_raw):
+            slope   = (self.p1_ppm - self.p0_ppm) / (self.p1_raw - self.p0_raw)
+            offset  = self.p1_ppm - (self.p1_raw * self.trim.slope)
+        else:
+            slope   = 1
+            offset  = 0
+
+        return slope, offset
+
+
 
 
 ###############################################################################

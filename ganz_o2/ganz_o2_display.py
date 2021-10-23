@@ -70,7 +70,6 @@ class Callback:
 
         self.graph.push( self.graph.xdata,                  datetime.now()              )
         self.graph.push( self.graph.ydata['GAS'       ],    self.sens.meas.ppm_sw       )
-        self.graph.push( self.graph.ydata['GAS F1'    ],    0.0                         )
         self.graph.push( self.graph.ydata['ADC RAW'   ],    self.sens.meas.adc_raw      )
         self.graph.push( self.graph.ydata['ADC mV'    ],    self.sens.meas.adc_mV       )
         self.graph.push( self.graph.ydata['t DigC'    ],    self.sens.meas.temp_digC    )
@@ -94,7 +93,8 @@ class Callback:
             self.cfg['SENSOR']['offset'] = str( self.sens.offset )
             self.cfg['SENSOR']['p0_raw'] = str( self.sens.p0_raw )
             self.cfg['SENSOR']['p1_raw'] = str( self.sens.p1_raw )
-            with open( self.cfg['DEFAULT']['filename'], "w" ) as configfile: self.cfg.write( configfile )
+            with open( self.cfg['DEFAULT']['filename'], "w" ) as configfile:
+                self.cfg.write( configfile )
 
         elif label == 'P ZERO':
             self.sens.trim_p0()
@@ -103,25 +103,16 @@ class Callback:
             self.cfg['SENSOR']['offset'] = str( self.sens.offset )
             self.cfg['SENSOR']['p0_raw'] = str( self.sens.p0_raw )
             self.cfg['SENSOR']['p1_raw'] = str( self.sens.p1_raw )
-            with open( self.cfg['DEFAULT']['filename'], "w" ) as configfile: self.cfg.write( configfile )
+            with open( self.cfg['DEFAULT']['filename'], "w" ) as configfile:
+                self.cfg.write( configfile )
 
         elif label == 'K TEMP':
-            self.sens.trim_drift_temp( self.sens.meas.temp_digC,  self.sens.y )
-            print( 'K TEMP: ', self.sens.ktemp.raw_0, self.sens.ktemp.digc_0, self.sens.ktemp.raw_1, self.sens.ktemp.digc_1 )
-            self.cfg['SENSOR']['ktemp_raw_0'    ] = str( self.sens.ktemp.raw_0      )
-            self.cfg['SENSOR']['ktemp_raw_1'    ] = str( self.sens.ktemp.raw_1      )
-            self.cfg['SENSOR']['ktemp_digc_0'   ] = str( self.sens.ktemp.digc_0     )
-            self.cfg['SENSOR']['ktemp_digc_1'   ] = str( self.sens.ktemp.digc_1     )
-            with open( self.cfg['DEFAULT']['filename'], "w" ) as configfile: self.cfg.write( configfile )
+            self.sens.trim_drift_temp( self.sens.meas.temp_digC,  self.sens.y[-1] )
 
         elif label == 'K PRES':
-            self.sens.kpres_update( self.sens.y, self.sens.meas.pres_hPa )
-            print( 'K PRES: ', self.sens.kpres.raw_0, self.sens.kpres.hpa_0, self.sens.kpres.raw_1, self.sens.kpres.hpa_1 )
-            self.cfg['SENSOR']['kpres_raw_0'    ] = str( self.sens.kpres.raw_0      )
-            self.cfg['SENSOR']['kpres_raw_1'    ] = str( self.sens.kpres.raw_1      )
-            self.cfg['SENSOR']['kpres_hpa_0'    ] = str( self.sens.kpres.hpa_0      )
-            self.cfg['SENSOR']['kpres_hpa_1'    ] = str( self.sens.kpres.hpa_1      )
-            with open( self.cfg['DEFAULT']['filename'], "w" ) as configfile: self.cfg.write( configfile )
+            m       = self.sens.read()
+            #print( 'p_hpa: ', type(m['p_hpa']) )
+            self.sens.trim_kpres( m['p_hpa'] )
 
         else:
             print( label )
@@ -137,16 +128,21 @@ if __name__ == '__main__':
     cfg['DEFAULT']['filename']  = "ganz.ini"
     cfg.read( cfg['DEFAULT']['filename'] )
 
-    title   =   cfg['SENSOR']['modbus_port'] + '@' +            \
-                cfg['SENSOR']['modbus_baudrate'] + ' ADDR: ' +  \
-                cfg['SENSOR']['modbus_address']
+    #gcfg    = ConfigParser()
+    #gcfg.read( "o2mb_graph.ini")
+
+
+    title   =   cfg['MODBUS']['port'    ] + '@' + \
+                cfg['MODBUS']['baudrate'] + ' ADDR: ' +  \
+                cfg['MODBUS']['address' ]
 
     fig     = plt.figure()
     fig.canvas.manager.set_window_title( title )
 
     ###########################################################################
     # SENSOR
-    sens    = Sensor( cfg['SENSOR'] )
+    #sens    = Sensor( cfg['SENSOR'] )
+    sens    = Sensor( cfg )
 
     ###########################################################################
     # GRAPH
@@ -165,7 +161,6 @@ if __name__ == '__main__':
     param   = [
     #   name        ymin            ymax            color       linestyle   linewidth
     (   'GAS',      o2_min,         o2_max,         'blue',     'dashed',   1,      ),
-    (   'GAS F1',   o2_min,         o2_max,         'royalblue','dashed',   1,      ),
     (   'ADC RAW',  adc_raw_min,    adc_raw_max,    'orange',   'solid',    1,      ),
     (   'ADC mV',   adc_mv_min,     adc_mv_max,     'orange',   'dotted',   1,      ),
     (   't DigC',   t_digc_min,     t_digc_max,     'red',      'dashed',   1,      ),
