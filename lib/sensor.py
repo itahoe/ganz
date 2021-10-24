@@ -20,7 +20,7 @@ from configparser import ConfigParser
 # SENSOR STORAGE
 class   SensorMeasure:
     __slots__       =   'adc_raw', 'adc_mV', 'ppm_sw', 'ppm_hw',            \
-                        'temp_digC', 'pres_hPa',                            \
+                        'temp_digc', 'pres_hpa',                            \
                         'mcu_digc', 'mcu_vdda',                             \
                         'temp_raw', 'pres_raw', 'slope_raw', 'offset_raw',
 
@@ -36,7 +36,7 @@ class   SensorKpres:
     __slots__       =   'k', 'raw_0', 'raw_1', 'hpa_0', 'hpa_1',
 
 class   SensorTrim:
-    __slots__       =    'slope', 'offset',
+    __slots__       =    'slope', 'offset', 'raw', 'ppm',
 
 
 ###############################################################################
@@ -60,28 +60,29 @@ class Sensor:
                                             'firmware_id',
                                             'serial_number' ])
 
-        __slots__                       = 'y', 'p',
+        __slots__           = 'y', 'p',
 
-        self.sts                        = SensorStatus()
-        self.meas                       = SensorMeasure()
-        self.ktemp                      = SensorKtemp()
-        self.kpres                      = SensorKpres()
+        self.sts            = SensorStatus()
+        self.meas           = SensorMeasure()
+        self.ktemp          = SensorKtemp()
+        self.kpres          = SensorKpres()
 
-        self.meas.adc_raw               = None
-        self.meas.adc_mV                = None
-        self.meas.temp_digC             = None
-        self.meas.pres_hPa              = None
+        self.meas.adc_raw   = None
+        self.meas.adc_mV    = None
+        self.meas.temp_digc = None
+        self.meas.pres_hpa  = None
 
         ########################################################################
         # TRIM RESTORE
-        self.trim                       = SensorTrim()
+        self.trim           = SensorTrim()
+        self.trim.raw       = [None] * 2
+        self.trim.ppm       = [None] * 2
+        self.trim.raw[ 0]   = cfg.getfloat('P ZERO', 'raw')
+        self.trim.ppm[ 0]   = cfg.getfloat('P ZERO', 'ppm')
+        self.trim.raw[ 1]   = cfg.getfloat('P HIGH', 'raw')
+        self.trim.ppm[ 1]   = cfg.getfloat('P HIGH', 'ppm')
 
-        self.p0_ppm         = cfg.getfloat('P ZERO', 'ppm')
-        self.p0_raw         = cfg.getfloat('P ZERO', 'raw')
-        self.p1_ppm         = cfg.getfloat('P HIGH', 'ppm')
-        self.p1_raw         = cfg.getfloat('P HIGH', 'raw')
-
-        self.trim.slope, self.trim.offset    = self.trim_update()
+        self.trim.offset, self.trim.slope     = self.trim_update( self.trim )
 
         ########################################################################
         # K TEMPERATURE RESTORE
@@ -214,15 +215,15 @@ class Sensor:
         self.sts.raw2ppm_ft     = float(    d[11])
         self.sts.raw2ppm_fp     = float(    d[12])
         self.meas.ppm_hw        = float(    d[13])
-        self.meas.temp_digC     = float(    d[14])
-        self.meas.pres_hPa      = float(    d[15])
+        self.meas.temp_digc     = float(    d[14])
+        self.meas.pres_hpa      = float(    d[15])
         self.meas.adc_raw       = int(      d[18])
         self.meas.temp_raw      = int(      d[19])
         self.meas.pres_raw      = int(      d[20])
         self.meas.slope_raw     = int(      d[21])
         self.meas.offset_raw    = int(      d[22])
 
-        return self.meas
+        return self.meas, self.sts
 
 
     def print(self, data):
@@ -257,6 +258,7 @@ class Sensor:
         #self.y          = y[-1] + self.t - p_offset
         self.y          = y[-1]
 
+        #print( 'type(self.trim.offset): ', type(self.trim.offset) )
         ppm = self.trim.offset + (self.trim.slope * self.y)
 
         return( ppm )
@@ -291,8 +293,6 @@ class Sensor:
 
 
     def rmse( self, data ):
-        #self.sens.rmse( self.graph.ydata['O2'] )
-
         average = 0
         xsum    = 0
         for x in data:   average += x
@@ -301,44 +301,33 @@ class Sensor:
         xsum    /= ( len( data ) - 1)
         return math.sqrt( xsum )
 
-
-    '''
     def trim_p0(self):
-        self.p0_raw = self.y
-        self.trim_update()
+        self.trim.raw[ 0] = self.y
+        self.trim.slope, self.trim.offset = self.trim_update( self.trim )
 
 
     def trim_p1(self):
-        self.p1_raw = self.y
-        self.trim_update()
+        self.trim.raw[ 1] = self.y
+        self.trim.slope, self.trim.offset = self.trim_update( self.trim )
 
 
-    def trim_update(self):
-        if (self.p1_raw - self.p0_raw) != 0.0:
-            self.tg     = (self.p1_ppm - self.p0_ppm) / (self.p1_raw - self.p0_raw)
-            self.offset = self.p1_ppm - (self.p1_raw * self.tg)
-    '''
-    def trim_p0(self):
-        self.p0_raw = self.y
-        #self.trim_update()
-        self.trim.slope, self.trim.offset = self.trim_update()
-
-
-    def trim_p1(self):
-        self.p1_raw = self.y
-        #self.trim_update()
-        self.trim.slope, self.trim.offset = self.trim_update()
-
-
-    def trim_update(self):
-        if 0.0 != (self.p1_raw - self.p0_raw):
-            slope   = (self.p1_ppm - self.p0_ppm) / (self.p1_raw - self.p0_raw)
-            offset  = self.p1_ppm - (self.p1_raw * self.trim.slope)
+    def trim_update( self, trim ):
+        if (trim.raw[ 1] - trim.raw[ 0]) != 0.0:
+            trim.slope  = (trim.ppm[ 1] - trim.ppm[ 0]) / (trim.raw[ 1] - trim.raw[ 0])
+            trim.offset = trim.ppm[ 1] - (trim.raw[ 1] * trim.slope)
         else:
-            slope   = 1
-            offset  = 0
+            trim.slope   = 1.0
+            trim.offset  = 0.0
 
-        return slope, offset
+        print( trim.raw )
+        print( trim.ppm )
+        print( trim.slope, trim.offset )
+
+        return trim.slope, trim.offset
+
+    #def trim_save( self, confpath ):
+    #    with open( confpath, "w" ) as configfile:
+    #        self.cfg.write( configfile )
 
 
 
@@ -358,8 +347,8 @@ class Callback:
     def trim_0(self, event):
         self.sens.trim_p0()
         print( 'TRIM 0: ', self.sens.p0_ppm, self.sens.p0_raw, self.sens.p1_ppm, self.sens.p1_raw )
-        self.cfg['SENSOR']['tg'    ] = str( self.sens.tg     )
-        self.cfg['SENSOR']['offset'] = str( self.sens.offset )
+        #self.cfg['SENSOR']['tg'    ] = str( self.sens.tg     )
+        #self.cfg['SENSOR']['offset'] = str( self.sens.offset )
         self.cfg['SENSOR']['p0_raw'] = str( self.sens.p0_raw )
         self.cfg['SENSOR']['p1_raw'] = str( self.sens.p1_raw )
         with open( self.cfg['DEFAULT']['filename'], "w" ) as configfile:
@@ -369,8 +358,8 @@ class Callback:
     def trim_1(self, event):
         self.sens.trim_p1()
         print( 'TRIM 1: ', self.sens.p0_ppm, self.sens.p0_raw, self.sens.p1_ppm, self.sens.p1_raw )
-        self.cfg['SENSOR']['tg'    ] = str( self.sens.tg     )
-        self.cfg['SENSOR']['offset'] = str( self.sens.offset )
+        #self.cfg['SENSOR']['tg'    ] = str( self.sens.tg     )
+        #self.cfg['SENSOR']['offset'] = str( self.sens.offset )
         self.cfg['SENSOR']['p0_raw'] = str( self.sens.p0_raw )
         self.cfg['SENSOR']['p1_raw'] = str( self.sens.p1_raw )
         with open( self.cfg['DEFAULT']['filename'], "w" ) as configfile:
@@ -399,11 +388,9 @@ class Callback:
     '''
 
     def timer( self, txt ):
-        m       = self.sens.read()
-        ppm     = self.sens.raw_to_ppm( m['adc_raw'], m['t_digc'], m['p_hpa'] )
-        adc_mV  = self.sens.raw_to_mV( m['adc_raw'] )
-
-        #rmse = np.std(self.graph.ydata['O2'])
+        meas, sts = self.sens.read()
+        ppm     = self.sens.raw_to_ppm( meas.adc_raw, meas.temp_digc, meas.pres_hpa )
+        adc_mV  = self.sens.raw_to_mV( meas.adc_raw )
 
         average = 0
         xsum    = 0
@@ -416,17 +403,17 @@ class Callback:
 
         self.graph.push( self.graph.xdata,                  datetime.now()  )
         self.graph.push( self.graph.ydata['O2'        ],    ppm             )
-        self.graph.push( self.graph.ydata['ADC RAW'   ],    m['adc_raw' ]   )
+        self.graph.push( self.graph.ydata['ADC RAW'   ],    meas.adc_raw    )
         self.graph.push( self.graph.ydata['ADC mV'    ],    adc_mV          )
-        self.graph.push( self.graph.ydata['t DIGC'    ],    m['t_digc'  ]   )
-        self.graph.push( self.graph.ydata['P hPa'     ],    m['p_hpa'   ]   )
+        self.graph.push( self.graph.ydata['t DIGC'    ],    meas.temp_digc  )
+        self.graph.push( self.graph.ydata['P hPa'     ],    meas.pres_hpa   )
 
         self.graph.plot()
 
         txt['O2'    ].set_text( '{:#.2f} PPM'   .format( ppm                            ) )
-        txt['ADC'   ].set_text( '{:#4.2f} mV'   .format( sens.raw_to_mV(m['adc_raw' ])  ) )
-        txt['TEMP'  ].set_text( '{:#4.2f} °C'   .format( m['t_digc' ]                   ) )
-        txt['PRES'  ].set_text( '{:#4.2f} hPa'  .format( m['p_hpa' ]                    ) )
+        txt['ADC'   ].set_text( '{:#4.2f} mV'   .format( sens.raw_to_mV(meas.adc_raw)   ) )
+        txt['TEMP'  ].set_text( '{:#4.2f} °C'   .format( meas.temp_digc                 ) )
+        txt['PRES'  ].set_text( '{:#4.2f} hPa'  .format( meas.pres_hpa                  ) )
         txt['RMS'   ].set_text( '{:#4.2f}'      .format( rmse ) )
         #txt['SLOPE' ].set_text( '{:#4.2f}'    .format( sd ) )
         #txt['P HIGH'].set_text( '{:#4.2f}'      .format( rmse ) )
@@ -442,24 +429,20 @@ if __name__ == '__main__':
 
     ###########################################################################
     # CONFIG
-    cfg     = ConfigParser()
-    cfg['DEFAULT']['filename']  = "ganz.ini"
-    cfg.read( cfg['DEFAULT']['filename'] )
+    conf    = ConfigParser()
+    conf['DEFAULT']['filename']  = "ganz.ini"
+    conf.read( conf['DEFAULT']['filename'] )
 
-    #gcfg    = ConfigParser()
-    #gcfg.read( "o2mb_graph.ini")
-
-
-    title   =   cfg['SENSOR']['modbus_port'] + '@' +            \
-                cfg['SENSOR']['modbus_baudrate'] + ' ADDR: ' +  \
-                cfg['SENSOR']['modbus_address']
+    title   =   conf['MODBUS']['port'] + '@' +            \
+                conf['MODBUS']['baudrate'] + ' ADDR: ' +  \
+                conf['MODBUS']['address']
 
     fig     = plt.figure()
     fig.canvas.manager.set_window_title( title )
 
     ###########################################################################
     # SENSOR
-    sens    = Sensor( cfg['SENSOR'] )
+    sens    = Sensor( conf )
 
     ###########################################################################
     # GRAPH
@@ -471,7 +454,7 @@ if __name__ == '__main__':
     (   't DIGC',   15,     45,         'red',      'dashdot',  1,      ),
     (   'P hPa',    950,    1050,       'green',    'dotted',   1,      ), ]
 
-    xlen    = cfg.getint( 'GRAPH', 'axlen' )
+    xlen    = conf.getint( 'GRAPH', 'axlen' )
     ax      = fig.add_axes( [0.05, 0.05, 0.70, 0.60], axes_class=HostAxes )
     graph   = Graph( ax, xlen, param )
     graph.init_timestamp( graph.xdata )
@@ -481,7 +464,7 @@ if __name__ == '__main__':
 
     ###########################################################################
     # CALLBACK
-    cbk     = Callback( cfg, sens, graph )
+    cbk     = Callback( conf, sens, graph )
 
     ###########################################################################
     # GUI
@@ -489,17 +472,17 @@ if __name__ == '__main__':
     ax2.set(xticks=[], yticks=[])
     ax2.axis["left","right","top","bottom"].set_visible(False)
 
-    btn_ph  = Button( plt.axes([0.3, 0.90, 0.20, 0.05]), 'P HIGH'    )
-    btn_p3  = Button( plt.axes([0.3, 0.85, 0.20, 0.05]), 'P 3'       )
-    btn_p2  = Button( plt.axes([0.3, 0.80, 0.20, 0.05]), 'P 2'       )
-    btn_p1  = Button( plt.axes([0.3, 0.75, 0.20, 0.05]), 'P 1'       )
-    btn_pz  = Button( plt.axes([0.3, 0.70, 0.20, 0.05]), 'P ZERO'    )
+    hbtn_ph  = Button( plt.axes([0.3, 0.90, 0.20, 0.05]), 'P HIGH'    )
+    hbtn_p3  = Button( plt.axes([0.3, 0.85, 0.20, 0.05]), 'P 3'       )
+    hbtn_p2  = Button( plt.axes([0.3, 0.80, 0.20, 0.05]), 'P 2'       )
+    hbtn_p1  = Button( plt.axes([0.3, 0.75, 0.20, 0.05]), 'P 1'       )
+    hbtn_pz  = Button( plt.axes([0.3, 0.70, 0.20, 0.05]), 'P ZERO'    )
 
-    btn_ph.on_clicked( lambda x: cbk.button(x, btn_ph.label.get_text()) )
-    btn_p3.on_clicked( lambda x: cbk.button(x, btn_p3.label.get_text()) )
-    btn_p2.on_clicked( lambda x: cbk.button(x, btn_p2.label.get_text()) )
-    btn_p1.on_clicked( lambda x: cbk.button(x, btn_p1.label.get_text()) )
-    btn_pz.on_clicked( lambda x: cbk.button(x, btn_pz.label.get_text()) )
+    hbtn_ph.on_clicked( lambda x: cbk.button(x, hbtn_ph.label.get_text()) )
+    hbtn_p3.on_clicked( lambda x: cbk.button(x, hbtn_p3.label.get_text()) )
+    hbtn_p2.on_clicked( lambda x: cbk.button(x, hbtn_p2.label.get_text()) )
+    hbtn_p1.on_clicked( lambda x: cbk.button(x, hbtn_p1.label.get_text()) )
+    hbtn_pz.on_clicked( lambda x: cbk.button(x, hbtn_pz.label.get_text()) )
 
     txt_left    = [ ('O2',      'blue',     ),
                     ('ADC',     'orange',   ),
@@ -528,7 +511,7 @@ if __name__ == '__main__':
         #ax2.text( xpos, ypos, key[0]+': ',                fontsize=10, horizontalalignment='right' )
         htxt[ key[ 0] ] = ax2.text( xpos, ypos, '-', color=key[1],   fontsize=10, horizontalalignment='right' )
         htxt[ key[ 0] ].set_color( key[ 1] )
-        htxt[ key[ 0] ].set_text( '{:#.2f} PPM'   .format( cfg.getfloat(key[0], 'ppm') ) )
+        htxt[ key[ 0] ].set_text( '{:#.2f} PPM'   .format( conf.getfloat(key[0], 'ppm') ) )
         ypos    += 0.175
 
 
