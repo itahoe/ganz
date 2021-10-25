@@ -230,9 +230,9 @@ class Sensor:
         print(  "%06Xh\t\t%3.2f\t\t%3.2f\t\t%4.2f\t\t%f" %
                 (   data['adc_raw'],
                     self.raw_to_mV( data['adc_raw'] ),
-                    data['t_digc' ],
-                    data['p_hpa'  ],
-                    self.raw_to_ppm(data['adc_raw'], data['t_digc'], data['p_hpa']),    ),
+                    data['temp_digc' ],
+                    data['pres_hpa'  ],
+                    self.raw_to_ppm(data['adc_raw'], data['temp_digc'], data['pres_hpa']),    ),
                 end='\r' )
 
 
@@ -259,7 +259,7 @@ class Sensor:
         self.y          = y[-1]
 
         #print( 'type(self.trim.offset): ', type(self.trim.offset) )
-        print( self.trim.slope, self.trim.offset )
+        #print( self.trim.slope, self.trim.offset )
         ppm = self.trim.offset + (self.trim.slope * self.y)
 
         return( ppm )

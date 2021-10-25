@@ -26,7 +26,7 @@ from configparser import ConfigParser
 class Callback:
 
 
-    def __init__(self, conf, sens, graph, txt ):
+    def __init__(self, conf, sens, graph, txt):
         self.conf       = conf
         self.sens       = sens
         self.graph      = graph
@@ -77,16 +77,13 @@ class Callback:
             self.sens.trim_p1()
             self.conf[label]['ppm'] = str( self.sens.trim.ppm[ 1] )
             self.conf[label]['raw'] = str( self.sens.trim.raw[ 1] )
-            with open(  self.conf['DEFAULT']['path'] + self.conf['DEFAULT']['name'], "w" ) as configfile:
-                self.conf.write( configfile )
+            self.conf_save()
 
         elif label == 'P ZERO':
             self.sens.trim_p0()
             self.conf[label]['ppm'] = str( self.sens.trim.ppm[ 0] )
             self.conf[label]['raw'] = str( self.sens.trim.raw[ 0] )
-            #with open( self.conf['DEFAULT']['filename'], "w" ) as configfile:
-            with open( self.conf['DEFAULT']['path'] + self.conf['DEFAULT']['name'], "w" ) as configfile:
-                self.conf.write( configfile )
+            self.conf_save()
 
         elif label == 'K TEMP':
             self.sens.trim_drift_temp( self.sens.meas.temp_digc,  self.sens.y[-1] )
@@ -100,6 +97,13 @@ class Callback:
             print( label )
 
 
+    def conf_save( self ):
+        confpath   = self.conf['DEFAULT']['ini_path'] + self.conf['DEFAULT']['ini_name']
+        with open( confpath, "w" ) as configfile:
+            self.conf.write( configfile )
+        
+
+
 ###############################################################################
 # MAIN
 if __name__ == '__main__':
@@ -108,16 +112,11 @@ if __name__ == '__main__':
     # CONFIG
     conf    = ConfigParser()
 
-    #conf['DEFAULT']['filename'] = str('../../ini/ganz.ini')
-    #conf['DEFAULT']['path']     = str('../../ini/')
-    #conf.read( conf['DEFAULT']['filename'] )
+    conf['DEFAULT']['ini_path']     = str('../../ini/')
+    conf['DEFAULT']['ini_name']     = str('ganz.ini')
+    conf.read( conf['DEFAULT']['ini_path'] + conf['DEFAULT']['ini_name'] )
 
-    conf['DEFAULT']['path']     = str('../../ini/')
-    conf['DEFAULT']['name']     = str('ganz.ini')
-    conf.read( conf['DEFAULT']['path'] + conf['DEFAULT']['name'] )
-
-    print( conf['DEFAULT']['path'] + conf['DEFAULT']['name'] )
-    print(  )
+    print( conf['DEFAULT']['ini_path'] + conf['DEFAULT']['ini_name'] )
 
     ###########################################################################
     # FIGURE
