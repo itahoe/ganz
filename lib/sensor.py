@@ -82,7 +82,7 @@ class Sensor:
         self.trim.raw[ 1]   = cfg.getfloat('P HIGH', 'raw')
         self.trim.ppm[ 1]   = cfg.getfloat('P HIGH', 'ppm')
 
-        self.trim.offset, self.trim.slope     = self.trim_update( self.trim )
+        self.trim.slope, self.trim.offset   = self.trim_update( self.trim )
 
         ########################################################################
         # K TEMPERATURE RESTORE
@@ -259,6 +259,7 @@ class Sensor:
         self.y          = y[-1]
 
         #print( 'type(self.trim.offset): ', type(self.trim.offset) )
+        print( self.trim.slope, self.trim.offset )
         ppm = self.trim.offset + (self.trim.slope * self.y)
 
         return( ppm )
@@ -319,9 +320,8 @@ class Sensor:
             trim.slope   = 1.0
             trim.offset  = 0.0
 
-        print( trim.raw )
-        print( trim.ppm )
-        print( trim.slope, trim.offset )
+        print( 'slope\toffset\t\tppm[ 0]\t\tppm[ 1]\t\traw[ 0]\t\traw[ 1]')
+        print( '%.4f\t' % trim.slope, '%.4f\t' % trim.offset, '%.2f\t\t' % trim.ppm[ 0], '%.2f\t\t' % trim.ppm[ 1], '%.2f\t' % trim.raw[ 0], '%.2f\t' % trim.raw[ 1] )
 
         return trim.slope, trim.offset
 
