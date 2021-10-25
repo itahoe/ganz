@@ -77,14 +77,15 @@ class Callback:
             self.sens.trim_p1()
             self.conf[label]['ppm'] = str( self.sens.trim.ppm[ 1] )
             self.conf[label]['raw'] = str( self.sens.trim.raw[ 1] )
-            with open( self.conf['DEFAULT']['filename'], "w" ) as configfile:
+            with open(  self.conf['DEFAULT']['path'] + self.conf['DEFAULT']['name'], "w" ) as configfile:
                 self.conf.write( configfile )
 
         elif label == 'P ZERO':
             self.sens.trim_p0()
             self.conf[label]['ppm'] = str( self.sens.trim.ppm[ 0] )
             self.conf[label]['raw'] = str( self.sens.trim.raw[ 0] )
-            with open( self.conf['DEFAULT']['filename'], "w" ) as configfile:
+            #with open( self.conf['DEFAULT']['filename'], "w" ) as configfile:
+            with open( self.conf['DEFAULT']['path'] + self.conf['DEFAULT']['name'], "w" ) as configfile:
                 self.conf.write( configfile )
 
         elif label == 'K TEMP':
@@ -106,13 +107,20 @@ if __name__ == '__main__':
     ###########################################################################
     # CONFIG
     conf    = ConfigParser()
-    conf['DEFAULT']['filename']  = "ganz.ini"
-    conf.read( conf['DEFAULT']['filename'] )
 
-    #gcfg    = ConfigParser()
-    #gcfg.read( "o2mb_graph.ini")
+    #conf['DEFAULT']['filename'] = str('../../ini/ganz.ini')
+    #conf['DEFAULT']['path']     = str('../../ini/')
+    #conf.read( conf['DEFAULT']['filename'] )
 
+    conf['DEFAULT']['path']     = str('../../ini/')
+    conf['DEFAULT']['name']     = str('ganz.ini')
+    conf.read( conf['DEFAULT']['path'] + conf['DEFAULT']['name'] )
 
+    print( conf['DEFAULT']['path'] + conf['DEFAULT']['name'] )
+    print(  )
+
+    ###########################################################################
+    # FIGURE
     title   =   conf['MODBUS']['port'    ] + '@' + \
                 conf['MODBUS']['baudrate'] + ' ADDR: ' +  \
                 conf['MODBUS']['address' ]
@@ -122,7 +130,6 @@ if __name__ == '__main__':
 
     ###########################################################################
     # SENSOR
-    #sens    = Sensor( cfg['SENSOR'] )
     sens    = Sensor( conf )
 
     ###########################################################################
