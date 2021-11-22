@@ -10,7 +10,7 @@ from matplotlib.ticker import AutoMinorLocator, MultipleLocator
 from mpl_toolkits.axisartist.parasite_axes import HostAxes, ParasiteAxes
 from datetime import datetime, timedelta
 from sensor import Sensor
-from logger import Logger
+#from logger import Logger
 from graph import Graph
 #from o2mb_2127 import O2mb
 from configparser import ConfigParser
@@ -116,11 +116,13 @@ class   Gui:
         self.btn_ofst_dec.on_clicked( offset_decrease )
 
         #btn_p1  = Button(ax_p1, f'P1: {sens.p1_ppm:.2f} PPM')
-        self.btn_p1  = Button(ax_p1, f'P1: {float(cfg["p1_ppm"]):.2f} PPM')
+        #self.btn_p1  = Button(ax_p1, f'P1: {float(cfg["p1_ppm"]):.2f} PPM')
+        self.btn_p1  = Button(ax_p1, f'P1: {float(cfg["P HIGH"]["ppm"]):.2f} PPM')
         self.btn_p1.on_clicked( sens_p1_update )
 
         #btn_p0  = Button(ax_p0, f'P0: {sens.p0_ppm:.2f} PPM')
-        self.btn_p0  = Button(ax_p0, f'P0: {float(cfg["p0_ppm"]):.2f} PPM')
+        #self.btn_p0  = Button(ax_p0, f'P0: {float(cfg["p0_ppm"]):.2f} PPM')
+        self.btn_p0  = Button(ax_p0, f'P0: {float(cfg["P ZERO"]["ppm"]):.2f} PPM')
         self.btn_p0.on_clicked( sens_p0_update )
 
         rax             = plt.axes([0.65, 0.35, 0.15, 0.30])
@@ -264,39 +266,42 @@ def graph_buffer_create(axmax):
 # MAIN
 if __name__ == '__main__':
 
-    cfg     = ConfigParser()
-    cfg['DEFAULT']['filename']  = "ganz.ini"
-    cfg.read( cfg['DEFAULT']['filename'] )
+    ###########################################################################
+    # CONFIG
+    conf    = ConfigParser()
 
+    conf['DEFAULT']['ini_path']     = str('../../ini/')
+    conf['DEFAULT']['ini_name']     = str('ganz.ini')
+    conf.read( conf['DEFAULT']['ini_path'] + conf['DEFAULT']['ini_name'] )
 
-    title   = cfg['SENSOR']['modbus_port'       ] + '@'         + \
-              cfg['SENSOR']['modbus_baudrate'   ] + ' ADDR: '   + \
-              cfg['SENSOR']['modbus_address'    ]
+    title   = conf['MODBUS']['port'       ] + '@'         + \
+              conf['MODBUS']['baudrate'   ] + ' ADDR: '   + \
+              conf['MODBUS']['address'    ]
 
     fig     = plt.figure()
     fig.canvas.manager.set_window_title( title )
 
     ###########################################################################
     # SENSOR
-    sens    = Sensor( cfg['SENSOR'] )
+    sens    = Sensor( conf )
 
     ax1     = fig.add_axes( [ 0.05, 0.35,  0.60, 0.60 ] )
     ax1.set(xticks=[], yticks=[])
     ax1.set_title('SENSOR')
 
-    gui     = Gui( ax1, cfg["SENSOR"], sens )
+    gui     = Gui( ax1, conf, sens )
 
     print( 'adc_raw\t\tadc_mV\t\tt_digc\t\tp_hpa\t\tppm' )
 
 
     ###########################################################################
     # GRAPH INIT
-    buffer  = graph_buffer_create( int( cfg['GRAPH']['axlen'] ) )
+    buffer  = graph_buffer_create( int( conf['GRAPH']['axlen'] ) )
     ax      = fig.add_axes( [0.05, 0.05, 0.70, 0.25], axes_class=HostAxes )
-    #graph   = O2mb_graph( host, cfg['GRAPH'], buffer )
+    #graph   = O2mb_graph( host, conf['GRAPH'], buffer )
     #graph.create()
 
-    graph   = O2mb_graph( ax, cfg['GRAPH'] )
+    graph   = O2mb_graph( ax, conf['GRAPH'] )
     graph.create()
     graph.init_timestamp( graph.buf['timestamp'] )
 

@@ -1,6 +1,6 @@
 ﻿import numpy as np
 import math
-import sys
+#import sys
 from scipy.signal   import kaiserord, butter, lfilter, lfilter_zi, filtfilt, firwin, freqz
 from graph          import Graph
 from threading      import Timer
@@ -302,6 +302,7 @@ class Sensor:
         xsum    /= ( len( data ) - 1)
         return math.sqrt( xsum )
 
+
     def trim_p0(self):
         self.trim.raw[ 0] = self.y
         self.trim.slope, self.trim.offset = self.trim_update( self.trim )
@@ -338,10 +339,9 @@ class Sensor:
 class Callback:
 
 
-    def __init__(self, cfg, sens, graph):
+    def __init__(self, cfg, sens):
         self.cfg        = cfg
         self.sens       = sens
-        self.graph      = graph
 
 
     def trim_0(self, event):
@@ -392,6 +392,7 @@ class Callback:
         ppm     = self.sens.raw_to_ppm( meas.adc_raw, meas.temp_digc, meas.pres_hpa )
         adc_mV  = self.sens.raw_to_mV( meas.adc_raw )
 
+        '''
         average = 0
         xsum    = 0
         for x in self.graph.ydata['O2']:   average += x
@@ -402,21 +403,26 @@ class Callback:
 
 
         self.graph.push( self.graph.xdata,                  datetime.now()  )
-        self.graph.push( self.graph.ydata['O2'        ],    ppm             )
+        #self.graph.push( self.graph.ydata['O2'        ],    ppm             )
+        self.graph.push( self.graph.ydata['O2'        ],    meas.ppm_hw     )
         self.graph.push( self.graph.ydata['ADC RAW'   ],    meas.adc_raw    )
         self.graph.push( self.graph.ydata['ADC mV'    ],    adc_mV          )
         self.graph.push( self.graph.ydata['t DIGC'    ],    meas.temp_digc  )
         self.graph.push( self.graph.ydata['P hPa'     ],    meas.pres_hpa   )
 
         self.graph.plot()
+        '''
 
         txt['O2'    ].set_text( '{:#.2f} PPM'   .format( ppm                            ) )
         txt['ADC'   ].set_text( '{:#4.2f} mV'   .format( sens.raw_to_mV(meas.adc_raw)   ) )
         txt['TEMP'  ].set_text( '{:#4.2f} °C'   .format( meas.temp_digc                 ) )
         txt['PRES'  ].set_text( '{:#4.2f} hPa'  .format( meas.pres_hpa                  ) )
-        txt['RMS'   ].set_text( '{:#4.2f}'      .format( rmse ) )
+        #txt['RMS'   ].set_text( '{:#4.2f}'      .format( rmse ) )
         #txt['SLOPE' ].set_text( '{:#4.2f}'    .format( sd ) )
         #txt['P HIGH'].set_text( '{:#4.2f}'      .format( rmse ) )
+
+        print( "| %8.2f | %3.2f | %4.2f | %8d |" %
+                (meas.ppm_hw, meas.temp_digc, meas.pres_hpa, meas.slope_raw ), end = '\r' )
 
 
     def button( self, event, lbl ):
@@ -433,12 +439,15 @@ if __name__ == '__main__':
     conf['DEFAULT']['filename']  = "ganz.ini"
     conf.read( conf['DEFAULT']['filename'] )
 
-    title   =   conf['MODBUS']['port'] + '@' +            \
-                conf['MODBUS']['baudrate'] + ' ADDR: ' +  \
-                conf['MODBUS']['address']
+    modbus = {  'port':     conf['MODBUS']['port'],
+                'baud':     int(conf['MODBUS']['baudrate']),
+                'addr':     int(conf['MODBUS']['address']),  }
+
+    coef    = [float(s) for s in conf['SENSOR']['coefficients'].split(',')]
+    print( 'coef: ', coef, '\tlen: ', len(coef), type(coef) )
 
     fig     = plt.figure()
-    fig.canvas.manager.set_window_title( title )
+    fig.canvas.manager.set_window_title( modbus['port'] + '@' + str(modbus['baud']) + ' ' + str(modbus['addr']) )
 
     ###########################################################################
     # SENSOR
@@ -446,6 +455,7 @@ if __name__ == '__main__':
 
     ###########################################################################
     # GRAPH
+    '''
     param   = [
     #   name        ymin    ymax        color       linestyle   linewidth
     (   'O2',       -50,    150,        'blue',     'dashed',   1,      ),
@@ -461,10 +471,11 @@ if __name__ == '__main__':
 
     graph.ydata['O2']   = [0.0 for a in range( len(graph.ydata['O2']))]
     #print( graph.ydata['t DIGC'])
+    '''
 
     ###########################################################################
     # CALLBACK
-    cbk     = Callback( conf, sens, graph )
+    cbk     = Callback( conf, sens )
 
     ###########################################################################
     # GUI
@@ -472,17 +483,24 @@ if __name__ == '__main__':
     ax2.set(xticks=[], yticks=[])
     ax2.axis["left","right","top","bottom"].set_visible(False)
 
-    hbtn_ph  = Button( plt.axes([0.3, 0.90, 0.20, 0.05]), 'P HIGH'    )
-    hbtn_p3  = Button( plt.axes([0.3, 0.85, 0.20, 0.05]), 'P 3'       )
-    hbtn_p2  = Button( plt.axes([0.3, 0.80, 0.20, 0.05]), 'P 2'       )
-    hbtn_p1  = Button( plt.axes([0.3, 0.75, 0.20, 0.05]), 'P 1'       )
-    hbtn_pz  = Button( plt.axes([0.3, 0.70, 0.20, 0.05]), 'P ZERO'    )
+    hbtn    = []
 
-    hbtn_ph.on_clicked( lambda x: cbk.button(x, hbtn_ph.label.get_text()) )
-    hbtn_p3.on_clicked( lambda x: cbk.button(x, hbtn_p3.label.get_text()) )
-    hbtn_p2.on_clicked( lambda x: cbk.button(x, hbtn_p2.label.get_text()) )
-    hbtn_p1.on_clicked( lambda x: cbk.button(x, hbtn_p1.label.get_text()) )
-    hbtn_pz.on_clicked( lambda x: cbk.button(x, hbtn_pz.label.get_text()) )
+    for i in range(len(coef)):
+        axes = plt.axes([0.3, 0.90 - (0.05 * i), 0.20, 0.05])
+        hbtn.append( Button( axes, 'point '+str(i)    ) )
+        hbtn[i].on_clicked( lambda x: cbk.button(x, hbtn[i].label.get_text()) )
+
+    #hbtn0   = Button( plt.axes([0.3, 0.70, 0.20, 0.05]), 'P ZERO'    )
+    #hbtn1   = Button( plt.axes([0.3, 0.75, 0.20, 0.05]), 'P 1'       )
+    #hbtn2   = Button( plt.axes([0.3, 0.80, 0.20, 0.05]), 'P 2'       )
+    #hbtn3   = Button( plt.axes([0.3, 0.85, 0.20, 0.05]), 'P 3'       )
+    #hbtn4   = Button( plt.axes([0.3, 0.90, 0.20, 0.05]), 'P HIGH'    )
+
+    #hbtn0.on_clicked( lambda x: cbk.button(x, hbtn0.label.get_text()) )
+    #hbtn1.on_clicked( lambda x: cbk.button(x, hbtn1.label.get_text()) )
+    #hbtn2.on_clicked( lambda x: cbk.button(x, hbtn2.label.get_text()) )
+    #hbtn3.on_clicked( lambda x: cbk.button(x, hbtn3.label.get_text()) )
+    #hbtn4.on_clicked( lambda x: cbk.button(x, hbtn4.label.get_text()) )
 
     txt_left    = [ ('O2',      'blue',     ),
                     ('ADC',     'orange',   ),
@@ -514,6 +532,10 @@ if __name__ == '__main__':
         htxt[ key[ 0] ].set_text( '{:#.2f} PPM'   .format( conf.getfloat(key[0], 'ppm') ) )
         ypos    += 0.175
 
+
+    print( "\r" )
+    print( "|       ppm |   t\xB0C |     hPa |    slope |" )
+    print( "-------------------------------------------------------------------------" )
 
     ###########################################################################
     # TIMER

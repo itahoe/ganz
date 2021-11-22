@@ -1,4 +1,22 @@
-﻿import sys
+﻿'''
+
+a + b*x + c*x^2 + d*x^3
+
+x = 10
+100             = 1.1*10^3 + x*10^2 + 3.3*10 + 0
+100 - 0         = 1.1*10^3 + x*10^2 + 3.3*10
+100             = 1.1*10^3 + x*10^2 + 3.3*10
+100 - 3.3*10    = 1.1*10^3 + x*10^2
+67              = 1.1*10^3 + x*10^2
+67 - 1.1*10^3   = x*10^2
+-1033           = x*10^2
+-1033 / 10^2    = x
+-10.33          = x
+
+'''
+
+
+import sys
 sys.path.append('../lib')
 
 import numpy as np
@@ -18,6 +36,43 @@ from matplotlib.widgets import Button
 from configparser import ConfigParser
 
 
+
+
+###############################################################################
+# RAW2PPM
+def raw2ppm( poly, raw ):
+    ppm = poly.a + (poly.b * raw) + (poly.c * raw**2) + (poly.d * raw**3)
+    return ppm
+
+
+def poly_cal_a( poly, ppm, raw ):
+    poly.a = ppm - (poly.b * raw) - (poly.c * raw**2) - (poly.d * raw**3)
+
+
+def poly_cal_b( poly, ppm, raw ):
+    poly.b = (ppm - poly.a - (poly.c * raw**2) - (poly.d * raw**3)) / raw
+
+
+def poly_cal_c( poly, ppm, raw ):
+    poly.c = (ppm - poly.a - (poly.b * raw) - (poly.d * raw**3)) / raw**2
+
+
+def poly_cal( coef, idx, ppm, raw ):
+
+    if idx < len(coef):
+        s = 0.0
+        for i in range(len(coef)):
+            if i==idx:
+                pass
+            else:
+                s += coef[i] * raw**i
+
+        coef[idx] = (ppm - s) / raw**idx
+    else:
+        #raise ValueError("idx value > len(coef)")
+        pass
+
+    return coef
 
 
 ###############################################################################
@@ -45,8 +100,6 @@ class Callback:
 
     def timer( self ):
         self.sens.read()
-
-        print( '%08X' % self.sens.meas.adc_raw, end='\r' )
         self.sens.meas.adc_mV   = self.sens.raw_to_mV( self.sens.meas.adc_raw )
         self.sens.meas.ppm_sw   = self.sens.raw_to_ppm( self.sens.meas.adc_raw,
                                                             self.sens.meas.temp_digc,
@@ -104,7 +157,6 @@ if __name__ == '__main__':
     # CONFIG
     conf    = ConfigParser()
 
-    #conf['DEFAULT']['ini_path']     = str('../../ini/')
     conf['DEFAULT']['ini_path']     = str('')
     conf['DEFAULT']['ini_name']     = str('ganz.ini')
     conf.read( conf['DEFAULT']['ini_path'] + conf['DEFAULT']['ini_name'] )
