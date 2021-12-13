@@ -13,14 +13,8 @@ from sensor import Sensor
 #from logger import Logger
 from graph import Graph
 #from o2mb_2127 import O2mb
-from configparser import ConfigParser
 
 
-def offset_increase(val):
-    sA.set_val(sA.val+1)
-
-def offset_decrease( val ):
-    sA.set_val(sA.val-1)
 
 def sens_p1_update(val):
     print( sens_p1_update )
@@ -33,25 +27,6 @@ def sens_p0_update(val):
     sens.trim_p0( sens.measure['adc_raw'] )
     cfg.update_sensor(sens.tg, sens.offset, sens.p0_raw, sens.p1_raw)
 
-def afe_control_cb(label):
-    sts = afe_control.get_status()[ check_labels[label] ]
-
-    if label=='SHORT INPUT':
-        sens.set_afe_ctl_short_input(sts)
-
-    if label=='UNIPOLAR':
-        sens.set_afe_ctl_unipolar(sts)
-
-    if label=='BUFFER ENABLE':
-        sens.set_afe_ctl_buffer_enable(sts)
-
-    plt.draw()
-
-def offset_update(val):
-    o2mb.set_offset( int(sA.val) )
-
-def afe_gain_cb(label):
-    o2mb.set_gain( afe_gain_dict[label] )
 
 ###############################################################################
 # DISPLAY FORMAT
@@ -109,12 +84,6 @@ class   Gui:
         ax_p1   = plt.axes([0.40, 0.425, 0.100, 0.05])
         ax_p0   = plt.axes([0.40, 0.375, 0.100, 0.05])
 
-        self.btn_ofst_inc = Button(axgainp, 'OFST +')
-        self.btn_ofst_inc.on_clicked( offset_increase )
-
-        self.btn_ofst_dec = Button(axgainm, 'OFST -')
-        self.btn_ofst_dec.on_clicked( offset_decrease )
-
         #btn_p1  = Button(ax_p1, f'P1: {sens.p1_ppm:.2f} PPM')
         #self.btn_p1  = Button(ax_p1, f'P1: {float(cfg["p1_ppm"]):.2f} PPM')
         self.btn_p1  = Button(ax_p1, f'P1: {float(cfg["P HIGH"]["ppm"]):.2f} PPM')
@@ -125,154 +94,113 @@ class   Gui:
         self.btn_p0  = Button(ax_p0, f'P0: {float(cfg["P ZERO"]["ppm"]):.2f} PPM')
         self.btn_p0.on_clicked( sens_p0_update )
 
-        rax             = plt.axes([0.65, 0.35, 0.15, 0.30])
-        afe_ctl         = sens.get_afe_control()
-        check_labels    = {'SHORT INPUT':0,'UNIPOLAR':1,'BUFFER ENABLE':2,}
-        check_actives   = ( bool(afe_ctl[0] & 1), bool(afe_ctl[0] & 2), bool(afe_ctl[0] & 4), )
-        afe_control     = CheckButtons(rax, check_labels, actives=check_actives )
-        afe_control.on_clicked(afe_control_cb)
+
+        #btn_ph  = Button( plt.axes([0.3, 0.90, 0.20, 0.05]), 'P HIGH'    )
+        #btn_pz  = Button( plt.axes([0.3, 0.85, 0.20, 0.05]), 'P ZERO'    )
+        #btn_ph.on_clicked( lambda x: cbk.button(x, btn_ph.label.get_text()) )
+        #btn_pz.on_clicked( lambda x: cbk.button(x, btn_pz.label.get_text()) )
+
+
 
         ###############################################################################
         # OFFSET
+        self.btn_ofst_inc = Button(axgainp, 'OFST +')
+        self.btn_ofst_inc.on_clicked( self.offset_increase )
+
+        self.btn_ofst_dec = Button(axgainm, 'OFST -')
+        self.btn_ofst_dec.on_clicked( self.offset_decrease )
+
         offset_max = int(64)
-        offset  = sens.get_offset()
+        offset  = sens.afe_offset_get()
 
         axcolor = 'lightgoldenrodyellow'
         axA = plt.axes([0.575, 0.55, 0.025, 0.35], facecolor=axcolor)
 
-        sA = Slider(axA, 'OFFSET RAW', valmin=0, valmax=offset_max, orientation="vertical", valinit=offset, valstep=1)
+        self.sA = Slider(axA, 'OFFSET RAW', valmin=0, valmax=offset_max, orientation="vertical", valinit=offset, valstep=1)
 
-        sA.on_changed(offset_update)
+        self.sA.on_changed( self.offset_update )
 
         ###############################################################################
         # DISPLAY FORMAT
-        ax_dspl_fmt     = plt.axes([0.80, 0.35, 0.15, 0.30])
-        self.dspl_fmt        = RadioButtons(ax_dspl_fmt, ('PPM', '%'))
+        ax_dspl_fmt         = plt.axes([0.80, 0.35, 0.15, 0.30])
+        self.dspl_fmt       = RadioButtons(ax_dspl_fmt, ('PPM', '%'))
         self.dspl_fmt.on_clicked(callbackradio)
 
-        ###############################################################################
-        # AFE GAIN
-        ax_afe_gain     = plt.axes([0.80, 0.65, 0.15, 0.30])
-        afe_gain_dict   = {'GAIN x1':0,'GAIN x2':1,'GAIN x4':2,'GAIN x8':3,'GAIN x16':4,'GAIN x32':5,'GAIN x64':6,'GAIN x128':7,}
-        afe_gain        = RadioButtons(ax_afe_gain, afe_gain_dict.keys())
-        afe_gain.set_active( sens.get_gain() )
-        afe_gain.on_clicked(afe_gain_cb)
 
-        ###############################################################################
-        # AFE CHANNEL
-        ax_afe_chnl         = plt.axes([0.65, 0.65, 0.15, 0.30])
-        self.afe_chnl_dict  = {'AIN_1P':0, 'AIN_2P':1, 'AIN_3P':2, 'AIN_1N':3, 'AVDD':7,}
-        afe_chnl            = RadioButtons( ax_afe_chnl, self.afe_chnl_dict.keys() )
-        afe_chnl_idx        = sens.get_afe_input()
-        #print( afe_chnl_idx )
-        #afe_chnl.set_active( 1 )
-        afe_chnl.set_active( afe_chnl_idx )
-        afe_chnl.on_clicked( self.afe_channel_cb )
-
-    def afe_channel_cb(self, idx):
-        o2mb.set_afe_input( self.afe_chnl_dict[idx] )
-
-    def update(self, data):
-        #self.fld_adc_vref.set_text(      f'{a[ 4]} mV'                       )
-        #self.fld_adc_res.set_text(       f'{a[ 5]} BITS'                     )
-        #self.fld_afe_gain.set_text(      f'{1<<a[ 6]}'                       )
-        #self.fld_afe_chnl.set_text(      f'{a[ 7]}'                          )
-        #self.fld_mcu_temp.set_text(      f'{a[ 8]} °C'                       )
-        #self.fld_mcu_vdda.set_text(      f'{a[ 9]} mV'                       )
-
-        self.fld_adc_raw.set_text(       f'0x{data["adc_raw"]:06X}'       )
-        self.fld_adc_mV.set_text(        f'{data["adc_mV"]:.6f} mV'       )
-        #self.fld_slope.set_text(         f'{a[ 8]:d}'                        )
-        self.fld_sens_temp.set_text(     f'{data["temp_digc"]:.2f} °C'    )
-        self.fld_sens_pressure.set_text( f'{data["pres_hpa"]:4.2f} hPa'   )
-        self.fld_sens_conc.set_text(     f'{data["ppm"]:.2f} PPM'         )
+    def offset_increase( self, val ):
+        self.sA.set_val( self.sA.val + 1 )
 
 
-###############################################################################
-# TIMER CALLBACK
-def timer_cb( sens, gui, graph ):
-
-    sens.read()
-    sens.print( sens.measure )
-
-    for k in graph.buf:
-        graph.buf[k][1:]  = graph.buf[k][:-1]
-
-    graph.buf['timestamp'][0]   = datetime.now()
-    graph.buf['adc_raw'  ][0]   = sens.measure['adc_raw' ]
-    graph.buf['t_digc'   ][0]   = sens.measure['t_digc'  ]
-    graph.buf['p_hpa'    ][0]   = sens.measure['p_hpa'   ]
-    graph.buf['ppm'      ][0]   = sens.raw_to_ppm( sens.measure['adc_raw'], sens.measure['t_digc'], sens.measure['p_hpa'] )
-    graph.plot()
-
-    '''
-    self.measure['error_code'   ]   = int(      d[ 0])
-    self.measure['starts_cnt'   ]   = int(      d[ 1])
-    self.measure['adc_vref'     ]   = int(      d[ 4])
-    self.measure['adc_res_bits' ]   = int(      d[ 5])
-    self.measure['mcu_digc'     ]   = int(      d[ 8])
-    self.measure['mcu_vdda'     ]   = int(      d[ 9])
-    self.measure['raw2ppm_fv'   ]   = float(    d[10])
-    self.measure['raw2ppm_ft'   ]   = float(    d[11])
-    self.measure['raw2ppm_fp'   ]   = float(    d[12])
-    self.measure['ppm'          ]   = float(    d[13])
-    self.measure['t_digc'       ]   = float(    d[14])
-    self.measure['p_hpa'        ]   = float(    d[15])
-    self.measure['adc_raw'      ]   = int(      d[18])
-    self.measure['t_raw'        ]   = int(      d[19])
-    self.measure['p_raw'        ]   = int(      d[20])
-    self.measure['slope_raw'    ]   = int(      d[21])
-    self.measure['offset_raw'   ]   = int(      d[22])
-    '''
-
-    gui.fld_adc_raw.set_text(       '{:#06x}'.format( sens.measure['adc_raw'] ) )
-    gui.fld_adc_mV.set_text(        '{:#4.2f} mV'.format( sens.raw_to_mV(sens.measure['adc_raw']) ) )
-    #gui.fld_slope.set_text(         ''.format() )
-    gui.fld_sens_temp.set_text(     '{:#4.2f}'.format( sens.measure['t_digc'        ] ) )
-    gui.fld_sens_pressure.set_text( '{:#4.2f}'.format( sens.measure['p_hpa'         ] ) )
-    gui.fld_adc_vref.set_text(      '{:#d} mV'.format( sens.measure['adc_vref'      ] ) )
-    gui.fld_adc_res.set_text(       '{:#d}'   .format( sens.measure['adc_res_bits'  ] ) )
-    #gui.fld_afe_gain.set_text(      ''.format() )
-    #gui.fld_afe_chnl.set_text(      ''.format() )
-    gui.fld_sens_conc.set_text(     '{:#4.2f}'.format( sens.raw_to_ppm( sens.measure['adc_raw'], sens.measure['t_digc'], sens.measure['p_hpa'] ) ) )
-    gui.fld_mcu_temp.set_text(      '{:#4.2f}'.format( sens.measure['mcu_digc'   ] ) )
-    gui.fld_mcu_vdda.set_text(      '{:#4.2f}'.format( sens.measure['mcu_vdda'   ] ) )
+    def offset_decrease( self, val ):
+        self.sA.set_val( self.sA.val - 1 )
 
 
-###############################################################################
-# GRAPH BUFFER
-def graph_buffer_create(axmax):
-    buffer  = { 'timestamp':    [],
-                'adc_raw':      [],
-                't_digc':       [],
-                'p_hpa':        [],
-                'ppm':          []      }
+    def offset_update( self, val ):
+        sens.afe_offset_set( int( self.sA.val ) )
 
-    t = datetime.now()
-    i = 0
-    while i < axmax:
-        buffer['timestamp'  ].append(t)
-        buffer['adc_raw'    ].append(None)
-        buffer['t_digc'     ].append(None)
-        buffer['p_hpa'      ].append(None)
-        buffer['ppm'        ].append(None)
-        t = t - timedelta(seconds=1)
-        i += 1
 
-    return buffer
+    def afe_gain_cbk(self, idx):
+        sens.afe_adc_gain_set( idx )
+
+
+    def afe_chnl_cbk( self, idx ):
+        sens.afe_adc_channel_set( sens.afe_chnl[idx] )
+
+
+    def afe_control_cbk(self, label):
+        sts = afe_control.get_status()[ check_labels[label] ]
+
+        if label=='UNIPOLAR':
+            sens.afe_ctl_unipolar_set( sts )
+        if label=='BUFFER':
+            sens.afe_ctl_buffer_set( sts )
+        if label=='P-SWITCH':
+            sens.afe_ctl_pswitch_set( sts )
+
+
+
+    def timer_cbk( self, sens, graph ):
+        sens.read()
+        sens.meas.adc_mV   = sens.raw_to_mV(    sens.meas.adc_raw )
+        sens.meas.ppm_sw   = sens.raw_to_ppm(   sens.meas.adc_raw,
+                                                sens.meas.temp_digc,
+                                                sens.meas.pres_hpa )
+
+        graph.push( graph.xdata,                  datetime.now()              )
+        graph.push( graph.ydata['GAS'       ],    sens.meas.ppm_sw       )
+        graph.push( graph.ydata['ADC mV'    ],    sens.meas.adc_mV       )
+        graph.push( graph.ydata['t DigC'    ],    sens.meas.temp_digc    )
+        graph.push( graph.ydata['P hPa'     ],    sens.meas.pres_hpa     )
+
+        graph.plot()
+
+        self.fld_adc_raw.set_text(      '%08X'      % sens.meas.adc_raw                 )
+        self.fld_adc_mV.set_text(       '%4.2f mV'  % sens.raw_to_mV(sens.meas.adc_raw) )
+        self.fld_sens_temp.set_text(    '%4.2f °C'  % sens.meas.temp_digc               )
+
+        #gui.fld_sens_pressure.set_text( '{:#4.2f}'.format( sens.meas.pres_hpa       ) )
+        self.fld_sens_pressure.set_text( '%4.2f hPa' % sens.meas.pres_hpa                )
+
+        self.fld_adc_vref.set_text(      '{:#d} mV'.format( sens.sts.adc_vref        ) )
+        self.fld_adc_res.set_text(       '{:#d}'   .format( sens.sts.adc_res_bits    ) )
+
+        self.fld_sens_conc.set_text(     '{:#4.2f}'.format( sens.meas.ppm_sw         ) )
+        self.fld_mcu_temp.set_text(      '{:#4.2f}'.format( sens.meas.mcu_digc       ) )
+        self.fld_mcu_vdda.set_text(      '{:#4.2f}'.format( sens.meas.mcu_vdda       ) )
 
 
 ###############################################################################
 # MAIN
 if __name__ == '__main__':
 
+    from configparser import ConfigParser
+
     ###########################################################################
     # CONFIG
     conf    = ConfigParser()
 
-    conf['DEFAULT']['ini_path']     = str('../../ini/')
     conf['DEFAULT']['ini_name']     = str('ganz.ini')
-    conf.read( conf['DEFAULT']['ini_path'] + conf['DEFAULT']['ini_name'] )
+    conf.read( conf['DEFAULT']['ini_name'] )
 
     title   = conf['MODBUS']['port'       ] + '@'         + \
               conf['MODBUS']['baudrate'   ] + ' ADDR: '   + \
@@ -284,31 +212,74 @@ if __name__ == '__main__':
     ###########################################################################
     # SENSOR
     sens    = Sensor( conf )
+    sens.read_config()
 
+    ###########################################################################
+    # 
     ax1     = fig.add_axes( [ 0.05, 0.35,  0.60, 0.60 ] )
     ax1.set(xticks=[], yticks=[])
     ax1.set_title('SENSOR')
 
     gui     = Gui( ax1, conf, sens )
 
-    print( 'adc_raw\t\tadc_mV\t\tt_digc\t\tp_hpa\t\tppm' )
+    #print( 'adc_raw\t\tadc_mV\t\tt_digc\t\tp_hpa\t\tppm' )
 
 
     ###########################################################################
     # GRAPH INIT
-    buffer  = graph_buffer_create( int( conf['GRAPH']['axlen'] ) )
-    ax      = fig.add_axes( [0.05, 0.05, 0.70, 0.25], axes_class=HostAxes )
-    #graph   = O2mb_graph( host, conf['GRAPH'], buffer )
-    #graph.create()
+    o2_min      = int( conf['GRAPH'  ]['o2_min'      ] )
+    o2_max      = int( conf['GRAPH'  ]['o2_max'      ] )
+    adc_raw_min = int( conf['GRAPH'  ]['adc_raw_min' ] )
+    adc_raw_max = int( conf['GRAPH'  ]['adc_raw_max' ] )
+    t_digc_min  = int( conf['GRAPH'  ]['t_digc_min'  ] )
+    t_digc_max  = int( conf['GRAPH'  ]['t_digc_max'  ] )
+    p_hpa_min   = int( conf['GRAPH'  ]['p_hpa_min'   ] )
+    p_hpa_max   = int( conf['GRAPH'  ]['p_hpa_max'   ] )
+    adc_mv_min  = int( conf['GRAPH'  ]['adc_mv_min'  ] )
+    adc_mv_max  = int( conf['GRAPH'  ]['adc_mv_max'  ] )
 
-    graph   = O2mb_graph( ax, conf['GRAPH'] )
-    graph.create()
-    graph.init_timestamp( graph.buf['timestamp'] )
+    param   = [
+    #   name        ymin            ymax            color       linestyle   linewidth
+    (   'GAS',      o2_min,         o2_max,         'blue',     'dashed',   1,      ),
+    (   'ADC mV',   adc_mv_min,     adc_mv_max,     'magenta',  'dotted',   1,      ),
+    (   't DigC',   t_digc_min,     t_digc_max,     'red',      'dashed',   1,      ),
+    (   'P hPa',    p_hpa_min,      p_hpa_max,      'green',    'dashdot',  1,      ), ]
+
+    axlen   = conf.getint( 'GRAPH', 'axlen' )
+    ax      = fig.add_axes( [0.05, 0.05, 0.70, 0.25], axes_class=HostAxes )
+    graph   = Graph( ax, axlen, param )
+    graph.init_timestamp( graph.xdata )
+
+    ###############################################################################
+    # AFE ADC CHANNEL
+    ax_afe_chnl         = plt.axes([0.65, 0.65, 0.15, 0.30])
+    afe_chnl            = RadioButtons( ax_afe_chnl, sens.afe_chnl.keys() )
+    #afe_chnl_idx        = sens.afe_adc_channel_get()
+    afe_chnl.set_active( sens.afe_adc_channel_get() )
+    afe_chnl.on_clicked( gui.afe_chnl_cbk )
+
+    ###############################################################################
+    # AFE ADC GAIN
+    afe_gain        = RadioButtons(plt.axes([0.80, 0.65, 0.15, 0.30]), sens.afe_gain_sel )
+    afe_gain.set_active( sens.afe_adc_gain_get() )
+    afe_gain.on_clicked( lambda idx: gui.afe_gain_cbk(sens.afe_gain_sel[idx]) )
+
+    ###############################################################################
+    # CONTROL
+    rax             = plt.axes([0.65, 0.35, 0.15, 0.30])
+    afe_adc_mode    = sens.afe_adc_mode_get()
+    afe_adc_conf    = sens.afe_adc_conf_get()
+    check_labels    = {'UNIPOLAR':0,'BUFFER':1,'P-SWITCH':2,}
+    check_actives   = ( bool(afe_adc_conf & 0x1000), bool(afe_adc_conf & 0x0010), bool(afe_adc_mode & 0x1000), )
+    afe_control     = CheckButtons(rax, check_labels, actives=check_actives )
+    afe_control.on_clicked( gui.afe_control_cbk )
+    #afe_control.on_clicked( lambda idx: gui.afe_control_cbk(sens.afe_gain_sel[idx]) )
 
     ###########################################################################
     # TIMER
     timer   = fig.canvas.new_timer(interval=1000)
-    timer.add_callback( timer_cb, sens, gui, graph )
+    timer.add_callback( gui.timer_cbk, sens, graph )
+
     timer.start()
 
     plt.show()

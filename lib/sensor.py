@@ -1,4 +1,4 @@
-﻿import numpy as np
+import numpy as np
 import math
 #import sys
 from scipy.signal   import kaiserord, butter, lfilter, lfilter_zi, filtfilt, firwin, freqz
@@ -18,25 +18,36 @@ from configparser import ConfigParser
 
 ###############################################################################
 # SENSOR STORAGE
-class   SensorMeasure:
-    __slots__       =   'adc_raw', 'adc_mV', 'ppm_sw', 'ppm_hw',            \
-                        'temp_digc', 'pres_hpa',                            \
-                        'mcu_digc', 'mcu_vdda',                             \
-                        'temp_raw', 'pres_raw', 'slope_raw', 'offset_raw',
+
+class   SensorConfig:
+    __slots__       =   'device_id', 'hardware_id', 'firmware_id', 'serial_number', \
+                        'last_error', 'starts_counter', 'adc_span', 'adc_resolution' \
+                        'adc_mv_per_bit'
+
 
 class   SensorStatus:
     __slots__       =   'error_code', 'starts_cnt',                         \
                         'adc_vref', 'adc_res_bits',                         \
                         'raw2ppm_fv', 'raw2ppm_ft', 'raw2ppm_fp',
 
-class   SensorKtemp:
-    __slots__       =   'k', 'raw_0', 'raw_1', 'digc_0', 'digc_1',
-
-class   SensorKpres:
-    __slots__       =   'k', 'raw_0', 'raw_1', 'hpa_0', 'hpa_1',
+class   SensorMeasure:
+    __slots__       =   'adc_raw', 'adc_mV', 'ppm_sw', 'ppm_hw',            \
+                        'temp_digc', 'pres_hpa',                            \
+                        'mcu_digc', 'mcu_vdda',                             \
+                        'temp_raw', 'pres_raw', 'slope_raw', 'offset_raw',
 
 class   SensorTrim:
     __slots__       =    'slope', 'offset', 'raw', 'ppm',
+
+class   SensorAfeDriftKtemp:
+    __slots__       =   'ktemp', \
+                        'adc_0_raw', 't0_digc', 't0_raw', \
+                        'adc_1_raw', 't1_digc', 't1_raw',
+
+class   SensorAfeDriftKpres:
+    __slots__       =   'kpres', \
+                        'adc_0_raw', 'p0_hpa', 'p0_raw', \
+                        'adc_1_raw', 'p1_hpa', 'p1_raw',
 
 
 ###############################################################################
@@ -45,27 +56,60 @@ class Sensor:
 
     def __init__(self, cfg):
 
-        self.hreg   = { 'AFE_STATUS'                :1024,
-                        'AFE_CONTROL'               :1025,
-                        'AFE_OFFSET'                :1026,
-                        'AFE_GAIN'                  :1027,
-                        'AFE_CHANNEL'               :1028,  }
+        self.cfg        = cfg
 
-        self.coil   = { 'AFE_CTL_INPUT_SHORT'       :0,
-                        'AFE_CTL_UNIPOLAR'          :1,
-                        'AFE_CTL_BUFFER_ENABLE'     :2,     }
+        self.hreg   = { 
+                        'HREG_CONF_BEGIN'               : 0x0000,
+                        #'HREG_CONF_BEGIN'               : 0x0100,
+
+                        #'HREG_CONF_AD7799_OFFSET'       : 0x0156,
+                        'HREG_CONF_AFE_BIAS'            : 0x0144,
+
+                        'HREG_CONF_AFE_DRIFT_K_TEMP'    : 0x0148,
+                        'HREG_CONF_AFE_DRIFT_K_PRES'    : 0x014C,
+                        'HREG_CONF_AD7799_MODE'         : 0x0150,
+                        'HREG_CONF_AD7799_CONF'         : 0x0151,
+                        'HREG_CONF_AD7799_CHANNEL'      : 0x0154,
+                        'HREG_CONF_AD7799_GAIN'         : 0x0155,
+                        'HREG_MEAS_BEGIN'               : 0x0200,   }
+
+        self.coil   = { 'AFE_CTL_UNIPOLAR'          :0,
+                        'AFE_CTL_BUFFER_ENABLE'     :1,
+                        'AFE_CTL_PSWITCH'           :2,     }
+
+        self.afe_chnl   = { 'AIN_1P'    :0,
+                            'AIN_2P'    :1,
+                            'AIN_3P'    :2,
+                            'AIN_1N'    :3,
+                            'RES_4'     :4,
+                            'RES_5'     :5,
+                            'RES_6'     :6,
+                            'AVDD'      :7, }
+
+        self.afe_gain_sel   = { 'GAIN x1'   :0,
+                                'GAIN x2'   :1,
+                                'GAIN x4'   :2,
+                                'GAIN x8'   :3,
+                                'GAIN x16'  :4,
+                                'GAIN x32'  :5,
+                                'GAIN x64'  :6,
+                                'GAIN x128' :7, }
 
         self.config     = dict.fromkeys([   'device_id',
                                             'hardware_id',
                                             'firmware_id',
                                             'serial_number' ])
 
+        self.device_id      = [None] * 4
+        #self.hardware_id    = [None] * 4
+
         __slots__           = 'y', 'p',
 
+        #self.config         = SensorConfig()
         self.sts            = SensorStatus()
         self.meas           = SensorMeasure()
-        self.ktemp          = SensorKtemp()
-        self.kpres          = SensorKpres()
+        self.ktemp          = SensorAfeDriftKtemp()
+        self.kpres          = SensorAfeDriftKpres()
 
         self.meas.adc_raw   = None
         self.meas.adc_mV    = None
@@ -85,23 +129,21 @@ class Sensor:
         self.trim.slope, self.trim.offset   = self.trim_update( self.trim )
 
         ########################################################################
-        # K TEMPERATURE RESTORE
-        #self.ktemp.raw_0    = cfg.getfloat('ktemp_raw_0')
-        #self.ktemp.raw_1    = cfg.getfloat('ktemp_raw_1')
-        #self.ktemp.digc_0   = cfg.getfloat('ktemp_digc_0')
-        #self.ktemp.digc_1   = cfg.getfloat('ktemp_digc_1')
-        #self.trim_ktemp_update()
-
-        #self.k_temp         = cfg.getfloat('afe_drift_t')
-        #self.afe_drift_t    = cfg.getfloat('afe_drift_t')
+        # AFE DRIFT BY TEMP RESTORE
+        #self.afe_drift.adc_0_raw    = cfg.getint(   'DRIFT', 'adc_0_raw'    )
+        self.ktemp.adc_0_raw    = int(cfg['KTEMP']['adc_0_raw'])
+        self.ktemp.adc_1_raw    = cfg.getint(   'KTEMP', 'adc_1_raw'    )
+        self.ktemp.t0_digc      = cfg.getfloat( 'KTEMP', 't0_digc'  )
+        self.ktemp.t1_digc      = cfg.getfloat( 'KTEMP', 't1_digc'  )
+        self.ktemp.ktemp        = self.afe_drift_ktemp_calc()
 
         ########################################################################
-        # K PRESSURE RESTORE
-        #self.kpres.raw_0    = cfg.getfloat('kpres_raw_0')
-        #self.kpres.raw_1    = cfg.getfloat('kpres_raw_1')
-        #self.kpres.hpa_0    = cfg.getfloat('kpres_hpa_0')
-        #self.kpres.hpa_1    = cfg.getfloat('kpres_hpa_1')
-        #self.kpres.k        = self.kpres_calc()
+        # AFE DRIFT BY PRESSURE RESTORE
+        self.kpres.adc_0_raw    = int(cfg['KPRES']['adc_0_raw'])
+        self.kpres.adc_1_raw    = cfg.getint(   'KPRES', 'adc_1_raw'    )
+        self.kpres.p0_hpa       = cfg.getfloat( 'KPRES', 'p0_hpa'  )
+        self.kpres.p1_hpa       = cfg.getfloat( 'KPRES', 'p1_hpa'  )
+        self.kpres.kpres        = self.afe_drift_kpres_calc()
 
         ########################################################################
         # LPF INIT
@@ -142,62 +184,176 @@ class Sensor:
         self.master.set_verbose( False )
 
 
-    def get_afe_control(self):
-        return self.master.execute( slave               = self.modbus_address,
-                                    function_code       = cst.READ_HOLDING_REGISTERS,
-                                    starting_address    = self.hreg['AFE_CONTROL'],
-                                    quantity_of_x       = 1,
-                                    data_format         = '>h'                      )
 
-
-    def get_offset(self):
+    ###########################################################################
+    # AFE OFFSET
+    def afe_offset_get(self):
         data = self.master.execute( slave               = self.modbus_address,
                                     function_code       = cst.READ_HOLDING_REGISTERS,
-                                    starting_address    = self.hreg['AFE_OFFSET'],
+                                    starting_address    = self.hreg['HREG_CONF_AFE_BIAS'],
                                     quantity_of_x       = 1,
                                     data_format         = '>h'                      )
         return int( data[0] )
 
-    def get_gain(self):
+
+    def afe_offset_set(self, val):
+        self.master.execute(        slave               = self.modbus_address,
+                                    function_code       = cst.WRITE_SINGLE_REGISTER,
+                                    starting_address    = self.hreg['HREG_CONF_AFE_BIAS'],
+                                    output_value        = val )
+
+
+    ###########################################################################
+    # AFE ADC MODE
+    def afe_adc_mode_get(self):
         data = self.master.execute( slave               = self.modbus_address,
                                     function_code       = cst.READ_HOLDING_REGISTERS,
-                                    starting_address    = self.hreg['AFE_GAIN'],
+                                    starting_address    = self.hreg['HREG_CONF_AD7799_MODE'],
+                                    quantity_of_x       = 1,
+                                    data_format         = '>h'                      )
+        return int( data[0] )
+
+
+    def afe_adc_mode_set(self, val):
+        self.master.execute(        slave               = self.modbus_address,
+                                    function_code       = cst.WRITE_SINGLE_REGISTER,
+                                    starting_address    = self.hreg['HREG_CONF_AD7799_MODE'],
+                                    output_value        = val )
+
+    ###########################################################################
+    # AFE ADC CONF
+    def afe_adc_conf_get(self):
+        data = self.master.execute( slave               = self.modbus_address,
+                                    function_code       = cst.READ_HOLDING_REGISTERS,
+                                    starting_address    = self.hreg['HREG_CONF_AD7799_CONF'],
+                                    quantity_of_x       = 1,
+                                    data_format         = '>h'                      )
+
+        return int( data[0] )
+
+
+    def afe_adc_conf_set(self, val):
+        self.master.execute(        slave               = self.modbus_address,
+                                    function_code       = cst.WRITE_SINGLE_REGISTER,
+                                    starting_address    = self.hreg['HREG_CONF_AD7799_CONF'],
+                                    output_value        = val )
+
+    ###########################################################################
+    # AFE ADC CHANNEL
+    def afe_adc_channel_get(self):
+        data = self.master.execute( slave               = self.modbus_address,
+                                    function_code       = cst.READ_HOLDING_REGISTERS,
+                                    starting_address    = self.hreg['HREG_CONF_AD7799_CHANNEL'],
+                                    quantity_of_x       = 1,
+                                    data_format         = '>h' )
+
+        return int(data[0])
+
+
+    def afe_adc_channel_set(self, val):
+        self.master.execute(        slave               = self.modbus_address,
+                                    function_code       = cst.WRITE_SINGLE_REGISTER,
+                                    starting_address    = self.hreg['HREG_CONF_AD7799_CHANNEL'],
+                                    output_value        = val )
+
+
+    ###########################################################################
+    # AFE ADC GAIN
+    def afe_adc_gain_get(self):
+        data = self.master.execute( slave               = self.modbus_address,
+                                    function_code       = cst.READ_HOLDING_REGISTERS,
+                                    starting_address    = self.hreg['HREG_CONF_AD7799_GAIN'],
                                     quantity_of_x       = 1,
                                     data_format         = '>h' )
         return int( data[0] )
 
 
-    def get_afe_input(self):
-        data = self.master.execute( slave               = self.modbus_address,
-                                    function_code       = cst.READ_HOLDING_REGISTERS,
-                                    starting_address    = self.hreg['AFE_CHANNEL'],
-                                    quantity_of_x       = 1,
-                                    data_format         = '>h' )
-        return int( data[0] )
+    def afe_adc_gain_set(self, val):
+        self.master.execute(        slave               = self.modbus_address,
+                                    function_code       = cst.WRITE_SINGLE_REGISTER,
+                                    starting_address    = self.hreg['HREG_CONF_AD7799_GAIN'],
+                                    output_value        = val )
 
 
+    ###########################################################################
+    # AFE CONTROL
+    def afe_ctl_unipolar_set(self, val):
+        self.master.execute(        slave               = self.modbus_address,
+                                    function_code       = cst.WRITE_SINGLE_COIL,
+                                    starting_address    = self.coil['AFE_CTL_UNIPOLAR'],
+                                    output_value        = int(1) if val else int(0) )
+
+    def afe_ctl_buffer_set(self, val):
+        self.master.execute(        slave               = self.modbus_address,
+                                    function_code       = cst.WRITE_SINGLE_COIL,
+                                    starting_address    = self.coil['AFE_CTL_BUFFER_ENABLE'],
+                                    output_value        = int(1) if val else int(0) )
+
+    def afe_ctl_pswitch_set(self, val):
+        self.master.execute(        slave               = self.modbus_address,
+                                    function_code       = cst.WRITE_SINGLE_COIL,
+                                    starting_address    = self.coil['AFE_CTL_PSWITCH'],
+                                    output_value        = int(1) if val else int(0) )
+
+    ###########################################################################
+    # SLOPE
     def slope_get(self, data):
         slope   = 0
         return slope
 
-
+    ###########################################################################
+    # READ CONFIG
     def read_config(self):
+        fmt = '>BB BB hh BBBB hh HHHHHHHH H H hh H H hh H H hhhhhh'
+
+        d   = self.master.execute(
+                slave               = self.modbus_address,
+                function_code       = cst.READ_HOLDING_REGISTERS,
+                starting_address    = self.hreg['HREG_CONF_BEGIN'],
+                quantity_of_x       = 32,
+                data_format         = fmt )
+
+
+        self.device_id      = str( '%02X%02X' % (d[ 0], d[ 1]) )
+        self.hardware_id    = str( '%02X%02X' % (d[ 2], d[ 3]) )
+        #self.firmware_id    = str( '%02X%02X%02X%02X%02X%02X' % (d[ 6], d[ 7], d[ 8], d[ 9], d[10], d[11]) )
+        self.firmware_id    = str( '%02X%02X%02X%02X' % (d[ 6], d[ 7], d[ 8], d[ 9]) )
+
+        self.serial_number  =   f'{d[12]:04X}{d[13]:04X}{d[14]:04X}{d[15]:04X}' + \
+                                f'{d[16]:04X}{d[17]:04X}{d[18]:04X}{d[19]:04X}'
+
+        self.last_error     = d[20]
+        self.starts_counter = d[21]
+        self.adc_span       = d[24]
+        self.adc_resolution = d[25]
+        self.adc_mv_per_bit = float( self.adc_span / (2**self.adc_resolution) )
+
+
+    ###########################################################################
+    # READ MEASURE
+    def read_measure(self):
+        fmt = '>fff hh h h hh h h hh I I I hhhhhhhhhh'
         d = self.master.execute(    slave               = self.modbus_address,
                                     function_code       = cst.READ_HOLDING_REGISTERS,
-                                    starting_address    = 0,
-                                    quantity_of_x       = 16,
-                                    data_format         = '>hhhhhhhhhhhhhhhh' )
+                                    starting_address    = self.hreg['HREG_MEAS_BEGIN'],
+                                    quantity_of_x       = 32,
+                                    data_format         = fmt )
 
-        self.config['device_id'     ]   = str(      d[ 0] + d[ 1])
-        self.config['hardware_id'   ]   = str(      d[ 2] + d[ 3])
-        self.config['firmware_id'   ]   = int(      d[ 4] + d[ 5] + d[ 6])
-        self.config['serial_number' ]   = int(      d[ 8] + d[ 9] + d[10] + d[11] + d[12] + d[13] + d[14] + d[15])
+        self.meas.ppm_hw        = float(    d[ 0])
+        self.meas.temp_digc     = float(    d[ 1])
+        self.meas.pres_hpa      = float(    d[ 2])
+        self.meas.slope_raw     = int(      d[ 5])
+        self.meas.offset_raw    = int(      d[ 6])
+        self.meas.mcu_digc      = int(      d[ 9])
+        self.meas.mcu_vdda      = int(      d[10])
 
-        self.measure['error_code'   ]   = int(      d[ 0])
+        self.meas.adc_raw       = int(      d[13])
+        self.meas.temp_raw      = int(      d[14])
+        self.meas.pres_raw      = int(      d[15])
 
-        return self.measure
 
-
+    ###########################################################################
+    # READ
     def read(self):
         d = self.master.execute(    slave               = self.modbus_address,
                                     function_code       = cst.READ_HOLDING_REGISTERS,
@@ -226,6 +382,7 @@ class Sensor:
         return self.meas, self.sts
 
 
+    '''
     def print(self, data):
         print(  "%06Xh\t\t%3.2f\t\t%3.2f\t\t%4.2f\t\t%f" %
                 (   data['adc_raw'],
@@ -234,12 +391,17 @@ class Sensor:
                     data['pres_hpa'  ],
                     self.raw_to_ppm(data['adc_raw'], data['temp_digc'], data['pres_hpa']),    ),
                 end='\r' )
+    '''
 
 
+    ###########################################################################
+    # RAW 2 mV
     def raw_to_mV(self, raw):
-        return float(raw) * (2500/(2**24))
+        return float(raw * self.adc_mv_per_bit)
 
 
+    ###########################################################################
+    # RAW 2 PPM
     def raw_to_ppm(self, raw, t_digc, hpa ):
         self.xn[1:]     = self.xn[:-1]
         self.xn[0]      = raw
@@ -265,34 +427,142 @@ class Sensor:
         return( ppm )
 
 
-    def trim_drift_temp( self, digc, raw ):
-        self.ktemp.raw_1        = self.ktemp.raw_0
-        self.ktemp.raw_0        = raw
-        self.ktemp.digc_1       = self.ktemp.digc_0
-        self.ktemp.digc_0       = digc
-        self.trim_ktemp_update()
+    ###########################################################################
+    # AFE DRIFT BY TEMPERATURE
+    def afe_drift_ktemp_set( self, idx, adc_raw, temp_digc ):
+
+        if idx is 0:
+            self.ktemp.adc_0_raw            = adc_raw
+            self.ktemp.t0_digc              = temp_digc
+
+            self.cfg['KTEMP']['adc_0_raw']  = str( adc_raw )
+            self.cfg['KTEMP']['t0_digc']    = str( temp_digc )
+            with open( self.cfg['DEFAULT']['filename'], "w" ) as configfile:
+                self.cfg.write( configfile )
+
+        elif idx is 1:
+            self.ktemp.adc_1_raw            = adc_raw
+            self.ktemp.t1_digc              = temp_digc
+
+            self.cfg['KTEMP']['adc_1_raw']  = str( adc_raw )
+            self.cfg['KTEMP']['t1_digc']    = str( temp_digc )
+            with open( self.cfg['DEFAULT']['filename'], "w" ) as configfile:
+                self.cfg.write( configfile )
 
 
-    def trim_ktemp_update(self):
-        if (self.ktemp.raw_0 - self.ktemp.raw_1) != 0.0:
-            self.ktemp.k            = (self.ktemp.digc_0 - self.ktemp.digc_1) / (self.ktemp.raw_0 - self.ktemp.raw_1)
+    def afe_drift_ktemp_calc(self):
+        t1      = self.ktemp.t1_digc
+        t0      = self.ktemp.t0_digc
+        raw1    = self.ktemp.adc_1_raw
+        raw0    = self.ktemp.adc_0_raw
+        k       = float(0)
+
+        if (raw1 - raw0) != 0.0:
+            k       = (t1 - t0) / (raw1 - raw0)
+            self.ktemp.ktemp    = k
+            print( 'calc', k )
+
+        return k
 
 
-    def kpres_update( self, raw, hpa ):
-        #print('trim_kpres: ', hpa )
-        self.kpres.raw_1        = self.kpres.raw_0
-        self.kpres.raw_0        = raw
-        self.kpres.hpa_1        = self.kpres.hpa_0
-        self.kpres.hpa_0        = hpa
-        self.kpres.k            = self.kpres_calc()
+    def afe_drift_ktemp_get( self ):
+        print( self.ktemp.ktemp )
+        return( self.ktemp.ktemp )
 
 
-    def kpres_calc( self ):
-        if (self.kpres.raw_0 - self.kpres.raw_1) != 0:
-            return (self.kpres.hpa_0 - self.kpres.hpa_1) / (self.kpres.raw_0 - self.kpres.raw_1)
-        return 0            
+    def afe_drift_ktemp_read( self ):
+        d = self.master.execute(    slave               = self.modbus_address,
+                                    function_code       = cst.READ_HOLDING_REGISTERS,
+                                    starting_address    = self.hreg['HREG_CONF_AFE_DRIFT_K_TEMP'],
+                                    quantity_of_x       = 2,
+                                    data_format         = '>f' )
+
+        print( d[ 0] )
+        return( d[ 0] )
 
 
+    def afe_drift_ktemp_upload( self, ktemp ):
+        print( ktemp )
+        try:
+            self.master.execute(        slave               = self.modbus_address,
+                                        function_code       = cst.WRITE_MULTIPLE_REGISTERS,
+                                        starting_address    = self.hreg['HREG_CONF_AFE_DRIFT_K_TEMP'],
+                                        #starting_address    = 0x0350,
+                                        quantity_of_x       = 2,
+                                        output_value        = [ktemp],
+                                        data_format         = '>f' )
+            return 'Success'
+
+        except Exception as err:
+            return err
+
+    ###########################################################################
+    # AFE DRIFT BY PRESSURE
+    def afe_drift_kpres_save( self, idx, adc_raw, pres_hpa ):
+
+        if idx is 0:
+            self.kpres.adc_0_raw            = adc_raw
+            self.kpres.p0_hpa               = pres_hpa
+
+            self.cfg['KPRES']['adc_0_raw']  = str( adc_raw )
+            self.cfg['KPRES']['p0_hpa']     = str( pres_hpa )
+            with open( self.cfg['DEFAULT']['filename'], "w" ) as configfile:
+                self.cfg.write( configfile )
+
+        elif idx is 1:
+            self.kpres.adc_1_raw            = adc_raw
+            self.kpres.p1_hpa               = pres_hpa
+
+            self.cfg['KPRES']['adc_1_raw']  = str( adc_raw )
+            self.cfg['KPRES']['p1_hpa']     = str( pres_hpa )
+            with open( self.cfg['DEFAULT']['filename'], "w" ) as configfile:
+                self.cfg.write( configfile )
+
+
+    def afe_drift_kpres_calc(self):
+        p1      = self.kpres.p1_hpa
+        p0      = self.kpres.p0_hpa
+        raw1    = self.kpres.adc_1_raw
+        raw0    = self.kpres.adc_0_raw
+        k       = float(0)
+
+        if (raw1 - raw0) != 0.0:
+            k       = (p1 - p0) / (raw1 - raw0)
+            self.kpres.kpres    = k
+
+        return k
+
+
+    def afe_drift_kpres_get( self ):
+        return( self.kpres.kpres )
+
+
+    def afe_drift_kpres_read( self ):
+        d = self.master.execute(    slave               = self.modbus_address,
+                                    function_code       = cst.READ_HOLDING_REGISTERS,
+                                    starting_address    = self.hreg['HREG_CONF_AFE_DRIFT_K_PRES'],
+                                    quantity_of_x       = 2,
+                                    data_format         = '>f' )
+
+        return( d[ 0] )
+
+
+    def afe_drift_kpres_upload( self, kpres ):
+        try:
+            self.master.execute(        slave               = self.modbus_address,
+                                        function_code       = cst.WRITE_MULTIPLE_REGISTERS,
+                                        starting_address    = self.hreg['HREG_CONF_AFE_DRIFT_K_PRES'],
+                                        #starting_address    = 0x0350,
+                                        quantity_of_x       = 2,
+                                        output_value        = [kpres],
+                                        data_format         = '>f' )
+            return 'Success'
+
+        except Exception as err:
+            return err
+
+    ###########################################################################
+    # ROOT MEAN SQUARE ERROR
     def rmse( self, data ):
         average = 0
         xsum    = 0
@@ -303,6 +573,8 @@ class Sensor:
         return math.sqrt( xsum )
 
 
+    ###########################################################################
+    # CAL
     def trim_p0(self):
         self.trim.raw[ 0] = self.y
         self.trim.slope, self.trim.offset = self.trim_update( self.trim )
@@ -321,8 +593,8 @@ class Sensor:
             trim.slope   = 1.0
             trim.offset  = 0.0
 
-        print( 'slope\toffset\t\tppm[ 0]\t\tppm[ 1]\t\traw[ 0]\t\traw[ 1]')
-        print( '%.4f\t' % trim.slope, '%.4f\t' % trim.offset, '%.2f\t\t' % trim.ppm[ 0], '%.2f\t\t' % trim.ppm[ 1], '%.2f\t' % trim.raw[ 0], '%.2f\t' % trim.raw[ 1] )
+        #print( 'slope\toffset\t\tppm[ 0]\t\tppm[ 1]\t\traw[ 0]\t\traw[ 1]')
+        #print( '%.4f\t' % trim.slope, '%.4f\t' % trim.offset, '%.2f\t\t' % trim.ppm[ 0], '%.2f\t\t' % trim.ppm[ 1], '%.2f\t' % trim.raw[ 0], '%.2f\t' % trim.raw[ 1] )
 
         return trim.slope, trim.offset
 
@@ -365,61 +637,17 @@ class Callback:
         with open( self.cfg['DEFAULT']['filename'], "w" ) as configfile:
             self.cfg.write( configfile )
 
-    '''
-    def timer_cb(self, sens, graph, txt ):
-
-        m   = sens.read()
-        ppm = sens.raw_to_ppm( m['adc_raw'], m['t_digc'], m['p_hpa'] )
-
-        graph.push( graph.buf['timestamp'], datetime.now()  )
-        graph.push( graph.buf['adc_raw'  ], m['adc_raw' ]   )
-        graph.push( graph.buf['t_digc'   ], m['t_digc'  ]   )
-        graph.push( graph.buf['p_hpa'    ], m['p_hpa'   ]   )
-        graph.push( graph.buf['ppm'      ], ppm             )
-
-        txt['ADC'   ].set_text( '{:#4.2f} mV'   .format( sens.raw_to_mV(m['adc_raw' ])  ) )
-        txt['PPM'   ].set_text( '{:#.2f} PPM'   .format( ppm                            ) )
-        txt['TEMP'  ].set_text( '{:#4.2f} °C'   .format( m['t_digc' ]                   ) )
-        txt['PRES'  ].set_text( '{:#4.2f} hPa'  .format( m['p_hpa' ]                    ) )
-
-        #graph.plot()
-        ybufs   = [ graph.buf['ppm'], graph.buf['adc_raw'], graph.buf['t_digc'], graph.buf['p_hpa'] ]
-        graph.plot( graph.buf['timestamp'], ybufs )
-    '''
 
     def timer( self, txt ):
         meas, sts = self.sens.read()
         ppm     = self.sens.raw_to_ppm( meas.adc_raw, meas.temp_digc, meas.pres_hpa )
         adc_mV  = self.sens.raw_to_mV( meas.adc_raw )
 
-        '''
-        average = 0
-        xsum    = 0
-        for x in self.graph.ydata['O2']:   average += x
-        average /= len(self.graph.ydata['O2'])
-        for x in self.graph.ydata['O2']:   xsum += (x - average)**2
-        xsum    /= ( len(self.graph.ydata['O2']) - 1)
-        rmse = math.sqrt( xsum )
-
-
-        self.graph.push( self.graph.xdata,                  datetime.now()  )
-        #self.graph.push( self.graph.ydata['O2'        ],    ppm             )
-        self.graph.push( self.graph.ydata['O2'        ],    meas.ppm_hw     )
-        self.graph.push( self.graph.ydata['ADC RAW'   ],    meas.adc_raw    )
-        self.graph.push( self.graph.ydata['ADC mV'    ],    adc_mV          )
-        self.graph.push( self.graph.ydata['t DIGC'    ],    meas.temp_digc  )
-        self.graph.push( self.graph.ydata['P hPa'     ],    meas.pres_hpa   )
-
-        self.graph.plot()
-        '''
 
         txt['O2'    ].set_text( '{:#.2f} PPM'   .format( ppm                            ) )
         txt['ADC'   ].set_text( '{:#4.2f} mV'   .format( sens.raw_to_mV(meas.adc_raw)   ) )
         txt['TEMP'  ].set_text( '{:#4.2f} °C'   .format( meas.temp_digc                 ) )
         txt['PRES'  ].set_text( '{:#4.2f} hPa'  .format( meas.pres_hpa                  ) )
-        #txt['RMS'   ].set_text( '{:#4.2f}'      .format( rmse ) )
-        #txt['SLOPE' ].set_text( '{:#4.2f}'    .format( sd ) )
-        #txt['P HIGH'].set_text( '{:#4.2f}'      .format( rmse ) )
 
         print( "| %8.2f | %3.2f | %4.2f | %8d |" %
                 (meas.ppm_hw, meas.temp_digc, meas.pres_hpa, meas.slope_raw ), end = '\r' )

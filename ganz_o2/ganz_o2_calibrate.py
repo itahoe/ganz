@@ -199,7 +199,7 @@ if __name__ == '__main__':
     (   'P hPa',    p_hpa_min,      p_hpa_max,      'green',    'dashdot',  1,      ), ]
 
     xlen    = conf.getint( 'GRAPH', 'axlen' )
-    ax      = fig.add_axes( [0.05, 0.05, 0.70, 0.60], axes_class=HostAxes )
+    ax      = fig.add_axes( [0.05, 0.05, 0.70, 0.25], axes_class=HostAxes )
     graph   = Graph( ax, xlen, param )
     graph.init_timestamp( graph.xdata )
 
@@ -212,14 +212,14 @@ if __name__ == '__main__':
     ax2.set(xticks=[], yticks=[])
     ax2.axis["left","right","top","bottom"].set_visible(False)
 
-    btn_ph  = Button( plt.axes([0.3, 0.90, 0.20, 0.05]), 'P HIGH'    )
-    btn_pz  = Button( plt.axes([0.3, 0.85, 0.20, 0.05]), 'P ZERO'    )
+    btn_ph  = Button( plt.axes([0.30, 0.90, 0.20, 0.05]), 'P HIGH'    )
+    btn_pz  = Button( plt.axes([0.30, 0.70, 0.20, 0.05]), 'P ZERO'    )
 
     btn_ph.on_clicked( lambda x: cbk.button(x, btn_ph.label.get_text()) )
     btn_pz.on_clicked( lambda x: cbk.button(x, btn_pz.label.get_text()) )
 
-    btn_kt  = Button( plt.axes([0.75, 0.90, 0.20, 0.05]), 'K TEMP'    )
-    btn_kp  = Button( plt.axes([0.75, 0.85, 0.20, 0.05]), 'K PRES'    )
+    btn_kt  = Button( plt.axes([0.30, 0.60, 0.20, 0.05]), 'K TEMP'    )
+    btn_kp  = Button( plt.axes([0.30, 0.55, 0.20, 0.05]), 'K PRES'    )
 
     btn_kt.on_clicked( lambda x: cbk.button(x, btn_kt.label.get_text()) )
     btn_kp.on_clicked( lambda x: cbk.button(x, btn_kp.label.get_text()) )

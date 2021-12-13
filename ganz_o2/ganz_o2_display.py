@@ -104,12 +104,14 @@ if __name__ == '__main__':
     # CONFIG
     conf    = ConfigParser()
 
-    #conf['DEFAULT']['ini_path']     = str('../../ini/')
-    conf['DEFAULT']['ini_path']     = str('')
     conf['DEFAULT']['ini_name']     = str('ganz.ini')
-    conf.read( conf['DEFAULT']['ini_path'] + conf['DEFAULT']['ini_name'] )
+    conf.read( conf['DEFAULT']['ini_name'] )
 
-    print( conf['DEFAULT']['ini_path'] + conf['DEFAULT']['ini_name'] )
+    #conf['DEFAULT']['ini_path']     = str('')
+    #conf['DEFAULT']['ini_name']     = str('ganz.ini')
+    #conf.read( conf['DEFAULT']['ini_path'] + conf['DEFAULT']['ini_name'] )
+
+    #print( conf['DEFAULT']['ini_path'] + conf['DEFAULT']['ini_name'] )
 
     ###########################################################################
     # FIGURE
@@ -123,6 +125,7 @@ if __name__ == '__main__':
     ###########################################################################
     # SENSOR
     sens    = Sensor( conf )
+    sens.read_config()
 
     ###########################################################################
     # GRAPH
