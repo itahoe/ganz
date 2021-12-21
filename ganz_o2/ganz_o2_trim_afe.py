@@ -48,7 +48,8 @@ class Callback:
 
         self.graph.plot()
 
-        self.txt['GAS'      ].set_text( '{:#.2f} PPM'   .format( ppm_sw                 )   )
+        self.txt['GAS SW'   ].set_text( '{:#.2f} PPM'   .format( ppm_sw                 )   )
+        self.txt['GAS HW'   ].set_text( '{:#.2f} PPM'   .format( self.sens.meas.ppm_hw  )   )
         self.txt['ADC'      ].set_text( '{:#4.2f} mV'   .format( adc_mV                 )   )
         self.txt['TEMP'     ].set_text( '{:#4.2f} °C'   .format( self.sens.meas.temp_digc ))
         #self.txt['PRES'     ].set_text( '{:#4.2f} hPa'  .format( self.sens.meas.pres_hpa ) )
@@ -61,16 +62,28 @@ class Callback:
 
 
     def button( self, event, label ):
-        if label == 'P HIGH':
+        if label == 'P SPAN':
             self.sens.trim_p1()
             self.conf[label]['ppm'] = str( self.sens.trim.ppm[ 1] )
             self.conf[label]['raw'] = str( self.sens.trim.raw[ 1] )
             self.conf_save()
+            self.txt['P SPAN'].set_text( '%.2f / %.2f' % (sens.trim.ppm[ 1], sens.raw_to_mV( sens.trim.raw[ 1]) ) )
+
         elif label == 'P ZERO':
             self.sens.trim_p0()
             self.conf[label]['ppm'] = str( self.sens.trim.ppm[ 0] )
             self.conf[label]['raw'] = str( self.sens.trim.raw[ 0] )
             self.conf_save()
+            self.txt['P ZERO'].set_text( '%.2f / %.2f' % (sens.trim.ppm[ 0], sens.raw_to_mV( sens.trim.raw[ 0]) ) )
+
+        elif label == 'PS UPLOAD':
+            resp    = self.sens.trim_write( 1 )
+            self.txt['Ps UPLOAD'].set_text( resp )
+
+        elif label == 'PZ UPLOAD':
+            resp    = self.sens.trim_write( 0 )
+            self.txt['Pz UPLOAD'].set_text( resp )
+
         elif label == 'K TEMP':
             self.sens.trim_drift_temp( self.sens.meas.temp_digc,  self.sens.y[-1] )
         elif label == 'K PRES':
@@ -113,11 +126,11 @@ class Callback:
             self.txt['Kp UPLOAD'].set_text( resp )
 
         else:
-            print( label )
+            print( label, 'not implemented yet' )
 
 
     def conf_save( self ):
-        confpath   = self.conf['DEFAULT']['ini_path'] + self.conf['DEFAULT']['ini_name']
+        confpath   = self.conf['DEFAULT']['filename']
         with open( confpath, "w" ) as configfile:
             self.conf.write( configfile )
 
@@ -216,7 +229,8 @@ if __name__ == '__main__':
 
     ###########################################################################
     # SENS MEASURE
-    txt_meas    = [ ('GAS',             'blue',     ),
+    txt_meas    = [ ('GAS SW',          'blue',     ),
+                    ('GAS HW',          'magenta',  ),
                     ('ADC',             'orange',   ),
                     ('TEMP',            'red',      ),
                     ('PRES',            'green',    ),
@@ -237,21 +251,33 @@ if __name__ == '__main__':
 
     ###########################################################################
     # TRIM
-    btn_ph  = Button( plt.axes([0.075, 0.55, 0.125, 0.05]), 'P HIGH'    )
-    btn_pz  = Button( plt.axes([0.075, 0.50, 0.125, 0.05]), 'P ZERO'    )
-    btn_ph.on_clicked( lambda x: cbk.button(x, btn_ph.label.get_text()) )
-    btn_pz.on_clicked( lambda x: cbk.button(x, btn_pz.label.get_text()) )
+    b_pspan_save    = Button( plt.axes([0.075, 0.55, 0.125, 0.05]), 'P SPAN'        )
+    b_pspan_upld    = Button( plt.axes([0.075, 0.50, 0.125, 0.05]), 'PS UPLOAD'     )
+    b_pzero_save    = Button( plt.axes([0.075, 0.45, 0.125, 0.05]), 'P ZERO'        )
+    b_pzero_upld    = Button( plt.axes([0.075, 0.40, 0.125, 0.05]), 'PZ UPLOAD'     )
+    b_pspan_save.on_clicked( lambda x: cbk.button(x, b_pspan_save.label.get_text()) )
+    b_pspan_upld.on_clicked( lambda x: cbk.button(x, b_pspan_upld.label.get_text()) )
+    b_pzero_save.on_clicked( lambda x: cbk.button(x, b_pzero_save.label.get_text()) )
+    b_pzero_upld.on_clicked( lambda x: cbk.button(x, b_pzero_upld.label.get_text()) )
 
-    txt_trim    = [ ('P HIGH',  'gray',     ),
-                    ('P ZERO',  'gray',     ),  ]
+    txt_trim    = [ ('P SPAN',      'gray',     ),
+                    ('Ps UPLOAD',   'gray',     ),
+                    ('P ZERO',      'gray',     ),
+                    ('Pz UPLOAD',   'gray',     ),  ]
 
     xpos, ypos = 0.175, 0.3625
     for key in txt_trim:
         htxt[ key[ 0] ] = ax2.text( xpos, ypos, '-', color=key[1],   fontsize=10, horizontalalignment='left' )
         htxt[ key[ 0] ].set_color( key[ 1] )
-        htxt[ key[ 0] ].set_text( '{:#.2f} PPM'   .format( conf.getfloat(key[0], 'ppm') ) )
+        #htxt[ key[ 0] ].set_text( '{:#.2f} PPM'   .format( conf.getfloat(key[0], 'ppm') ) )
         ypos    -= 0.0825
 
+    #htxt['P SPAN'       ].set_text( '%.2f / %.2f' % (sens.trim.ppm[ 1], sens.trim.raw[ 1])     )
+    htxt['P SPAN'       ].set_text( '%.2f / %.2f' % (sens.trim.ppm[ 1], sens.raw_to_mV( sens.trim.raw[ 1]) ) )
+    htxt['Ps UPLOAD'    ].set_text( '%.8f'      % sens.trim_span_read() )
+    #htxt['P ZERO'       ].set_text( '%.2f / %.2f' % (sens.trim.ppm[ 0], sens.trim.raw[ 0])     )
+    htxt['P ZERO'       ].set_text( '%.2f / %.2f' % (sens.trim.ppm[ 0], sens.raw_to_mV( sens.trim.raw[ 0]) ) )
+    htxt['Pz UPLOAD'    ].set_text( '%.8f'      % sens.trim_zero_read() )
 
     ###########################################################################
     # AFE DRIFT Ktemp

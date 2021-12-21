@@ -86,7 +86,7 @@ class   Gui:
 
         #btn_p1  = Button(ax_p1, f'P1: {sens.p1_ppm:.2f} PPM')
         #self.btn_p1  = Button(ax_p1, f'P1: {float(cfg["p1_ppm"]):.2f} PPM')
-        self.btn_p1  = Button(ax_p1, f'P1: {float(cfg["P HIGH"]["ppm"]):.2f} PPM')
+        self.btn_p1  = Button(ax_p1, f'P1: {float(cfg["P SPAN"]["ppm"]):.2f} PPM')
         self.btn_p1.on_clicked( sens_p1_update )
 
         #btn_p0  = Button(ax_p0, f'P0: {sens.p0_ppm:.2f} PPM')

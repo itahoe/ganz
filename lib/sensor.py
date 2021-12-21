@@ -19,11 +19,13 @@ from configparser import ConfigParser
 ###############################################################################
 # SENSOR STORAGE
 
+class   SensorTitle:
+    __slots__       =   'title',
+
 class   SensorConfig:
     __slots__       =   'device_id', 'hardware_id', 'firmware_id', 'serial_number', \
                         'last_error', 'starts_counter', 'adc_span', 'adc_resolution' \
                         'adc_mv_per_bit'
-
 
 class   SensorStatus:
     __slots__       =   'error_code', 'starts_cnt',                         \
@@ -37,7 +39,7 @@ class   SensorMeasure:
                         'temp_raw', 'pres_raw', 'slope_raw', 'offset_raw',
 
 class   SensorTrim:
-    __slots__       =    'slope', 'offset', 'raw', 'ppm',
+    __slots__       =    'slope', 'offset', 'raw', 'ppm', 'timestamp',
 
 class   SensorAfeDriftKtemp:
     __slots__       =   'ktemp', \
@@ -61,6 +63,9 @@ class Sensor:
         self.hreg   = { 
                         'HREG_CONF_BEGIN'               : 0x0000,
                         #'HREG_CONF_BEGIN'               : 0x0100,
+                        'HREG_TRIM'                     : 0x0030,
+                        'HREG_TRIM_ZERO'                : 0x0030,
+                        'HREG_TRIM_SPAN'                : 0x0038,
 
                         #'HREG_CONF_AD7799_OFFSET'       : 0x0156,
                         'HREG_CONF_AFE_BIAS'            : 0x0144,
@@ -118,13 +123,16 @@ class Sensor:
 
         ########################################################################
         # TRIM RESTORE
-        self.trim           = SensorTrim()
-        self.trim.raw       = [None] * 2
-        self.trim.ppm       = [None] * 2
-        self.trim.raw[ 0]   = cfg.getfloat('P ZERO', 'raw')
-        self.trim.ppm[ 0]   = cfg.getfloat('P ZERO', 'ppm')
-        self.trim.raw[ 1]   = cfg.getfloat('P HIGH', 'raw')
-        self.trim.ppm[ 1]   = cfg.getfloat('P HIGH', 'ppm')
+        self.trim               = SensorTrim()
+        self.trim.raw           = [None] * 2
+        self.trim.ppm           = [None] * 2
+        self.trim.timestamp     = [None] * 2
+        self.trim.raw[       0] = cfg.getfloat( 'P ZERO', 'raw'         )
+        self.trim.ppm[       0] = cfg.getfloat( 'P ZERO', 'ppm'         )
+        self.trim.timestamp[ 0] = cfg.getint(   'P ZERO', 'timestamp'   )
+        self.trim.raw[       1] = cfg.getfloat( 'P SPAN', 'raw'         )
+        self.trim.ppm[       1] = cfg.getfloat( 'P SPAN', 'ppm'         )
+        self.trim.timestamp[ 1] = cfg.getint(   'P ZERO', 'timestamp'   )
 
         self.trim.slope, self.trim.offset   = self.trim_update( self.trim )
 
@@ -167,8 +175,8 @@ class Sensor:
         self.tn             = [0.0] * len(self.taps)
         self.pn             = [0.0] * len(self.taps)
 
-        print( '    N:', N )
-        print( ' taps:', len(self.taps) )
+        #print( '    N:', N )
+        #print( ' taps:', len(self.taps) )
 
 
         #######################################################################
@@ -183,6 +191,61 @@ class Sensor:
         self.master.set_timeout( 2.0 )
         self.master.set_verbose( False )
 
+        self.read_config()
+
+        self.title  = self.cfg.get('MODBUS', 'port') + '@'
+        self.title  += self.cfg.get('MODBUS', 'baudrate') + ' ADDR: '
+        self.title  += self.cfg.get('MODBUS', 'address')
+
+    ###########################################################################
+    # READ TRIM
+    def read_trim( self ):
+        fmt = '>I f f hh I f f hh'
+        d = self.master.execute(    slave               = self.modbus_address,
+                                    function_code       = cst.READ_HOLDING_REGISTERS,
+                                    starting_address    = self.hreg['HREG_TRIM'],
+                                    quantity_of_x       = 16,
+                                    data_format         = fmt )
+
+        self.trim.timestamp[ 0] = int(      d[ 0])
+        self.trim.ppm[       0] = float(    d[ 1])
+        self.trim.raw[       0] = float(    d[ 2])
+
+        self.trim.timestamp[ 1] = int(      d[ 5])
+        self.trim.ppm[       1] = float(    d[ 6])
+        self.trim.raw[       1] = float(    d[ 7])
+
+
+    ###########################################################################
+    # TRIM
+    def trim_zero_read(self):
+        data = self.master.execute( slave               = self.modbus_address,
+                                    function_code       = cst.READ_HOLDING_REGISTERS,
+                                    starting_address    = self.hreg['HREG_TRIM_ZERO'],
+                                    quantity_of_x       = 8,
+                                    data_format         = '>I f f hh' )
+
+        timestamp   = data[ 0]
+        ppm         = data[ 1]
+        raw         = data[ 2]
+
+        #return ppm, raw, timestamp
+        return ppm
+
+
+    def trim_span_read(self):
+        data = self.master.execute( slave               = self.modbus_address,
+                                    function_code       = cst.READ_HOLDING_REGISTERS,
+                                    starting_address    = self.hreg['HREG_TRIM_SPAN'],
+                                    quantity_of_x       = 8,
+                                    data_format         = '>I f f hh' )
+
+        timestamp   = data[ 0]
+        ppm         = data[ 1]
+        raw         = data[ 2]
+
+        #return ppm, raw, timestamp
+        return ppm
 
 
     ###########################################################################
@@ -403,29 +466,93 @@ class Sensor:
     ###########################################################################
     # RAW 2 PPM
     def raw_to_ppm(self, raw, t_digc, hpa ):
+
+
         self.xn[1:]     = self.xn[:-1]
         self.xn[0]      = raw
+        #self.xn[0]      = raw + self.ktemp.ktemp + self.kpres.kpres
 
-        self.tn[1:]     = self.tn[:-1]
-        self.tn[0]      = t_digc
-
-        #t               = lfilter(self.taps, 1.0, self.tn )
-        #t_offset        = self.afe_drift_t * t_digc
-        #self.t          = t[-1] + t_offset
-
-        #p               = lfilter(self.taps, 1.0, self.pn )
-        #p_offset        = self.kpres.k * hpa
+        #self.tn[1:]     = self.tn[:-1]
+        #self.tn[0]      = t_digc
 
         y               = lfilter(self.taps, 1.0, self.xn )
-        #self.y          = y[-1] + self.t - p_offset
         self.y          = y[-1]
-
-        #print( 'type(self.trim.offset): ', type(self.trim.offset) )
-        #print( self.trim.slope, self.trim.offset )
         ppm = self.trim.offset + (self.trim.slope * self.y)
+        #ppm = self.trim.slope * (self.y + self.trim.offset)
 
         return( ppm )
 
+    ###########################################################################
+    # TRIM
+    def trim_p0(self):
+        self.trim.raw[ 0] = self.y
+        self.trim.slope, self.trim.offset = self.trim_update( self.trim )
+
+    def trim_p1(self):
+        self.trim.raw[ 1] = self.y
+        self.trim.slope, self.trim.offset = self.trim_update( self.trim )
+
+    def trim_update( self, trim ):
+
+        #print( 'trim_update', self.meas.adc_raw, trim.raw[ 0], trim.raw[ 1] )
+
+        if (trim.raw[ 1] - trim.raw[ 0]) != 0.0:
+            trim.slope  = (trim.ppm[ 1] - trim.ppm[ 0]) / (trim.raw[ 1] - trim.raw[ 0])
+            trim.offset = trim.ppm[ 1] - (trim.raw[ 1] * trim.slope)
+        else:
+            trim.slope   = 1.0
+            trim.offset  = 0.0
+
+        #print( 'slope\toffset\t\tppm[ 0]\t\tppm[ 1]\t\traw[ 0]\t\traw[ 1]')
+        #print( '%.4f\t' % trim.slope, '%.4f\t' % trim.offset, '%.2f\t\t' % trim.ppm[ 0], '%.2f\t\t' % trim.ppm[ 1], '%.2f\t' % trim.raw[ 0], '%.2f\t' % trim.raw[ 1] )
+
+        return trim.slope, trim.offset
+
+    #def trim_save( self, confpath ):
+    #    with open( confpath, "w" ) as configfile:
+    #        self.cfg.write( configfile )
+
+
+    def trim_write(self, idx):
+        if   idx is 0:
+            timestamp   = self.trim.timestamp[ 0]
+            ppm         = int( self.trim.ppm[ 0] )
+            raw         = int( self.trim.raw[ 0] )
+            try:
+                self.master.execute(    slave               = self.modbus_address,
+                                        function_code       = cst.WRITE_MULTIPLE_REGISTERS,
+                                        starting_address    = self.hreg['HREG_TRIM_ZERO'],
+                                        quantity_of_x       = 6,
+                                        output_value        = [ timestamp, ppm, raw ],
+                                        data_format         = '>III' )
+                return 'Success'
+
+            except Exception as err:
+                return err
+
+        elif idx is 1:
+            timestamp   = self.trim.timestamp[ 1]
+            ppm         = int( self.trim.ppm[ 1] )
+            raw         = int( self.trim.raw[ 1] )
+
+            try:
+                self.master.execute(    slave               = self.modbus_address,
+                                        function_code       = cst.WRITE_MULTIPLE_REGISTERS,
+                                        starting_address    = self.hreg['HREG_TRIM_SPAN'],
+                                        quantity_of_x       = 6,
+                                        output_value        = [ timestamp, ppm, raw ],
+                                        data_format         = '>III' )
+                return 'Success'
+
+            except Exception as err:
+                return err
+
+        else:
+            return 'IDX out of range'
+
+
+    def trim_read_raw(self, idx):
+        pass
 
     ###########################################################################
     # AFE DRIFT BY TEMPERATURE
@@ -460,7 +587,7 @@ class Sensor:
         if (raw1 - raw0) != 0.0:
             k       = (t1 - t0) / (raw1 - raw0)
             self.ktemp.ktemp    = k
-            print( 'calc', k )
+            #print( 'calc', k )
 
         return k
 
@@ -482,7 +609,7 @@ class Sensor:
 
 
     def afe_drift_ktemp_upload( self, ktemp ):
-        print( ktemp )
+        #print( ktemp )
         try:
             self.master.execute(        slave               = self.modbus_address,
                                         function_code       = cst.WRITE_MULTIPLE_REGISTERS,
@@ -572,35 +699,6 @@ class Sensor:
         xsum    /= ( len( data ) - 1)
         return math.sqrt( xsum )
 
-
-    ###########################################################################
-    # CAL
-    def trim_p0(self):
-        self.trim.raw[ 0] = self.y
-        self.trim.slope, self.trim.offset = self.trim_update( self.trim )
-
-
-    def trim_p1(self):
-        self.trim.raw[ 1] = self.y
-        self.trim.slope, self.trim.offset = self.trim_update( self.trim )
-
-
-    def trim_update( self, trim ):
-        if (trim.raw[ 1] - trim.raw[ 0]) != 0.0:
-            trim.slope  = (trim.ppm[ 1] - trim.ppm[ 0]) / (trim.raw[ 1] - trim.raw[ 0])
-            trim.offset = trim.ppm[ 1] - (trim.raw[ 1] * trim.slope)
-        else:
-            trim.slope   = 1.0
-            trim.offset  = 0.0
-
-        #print( 'slope\toffset\t\tppm[ 0]\t\tppm[ 1]\t\traw[ 0]\t\traw[ 1]')
-        #print( '%.4f\t' % trim.slope, '%.4f\t' % trim.offset, '%.2f\t\t' % trim.ppm[ 0], '%.2f\t\t' % trim.ppm[ 1], '%.2f\t' % trim.raw[ 0], '%.2f\t' % trim.raw[ 1] )
-
-        return trim.slope, trim.offset
-
-    #def trim_save( self, confpath ):
-    #    with open( confpath, "w" ) as configfile:
-    #        self.cfg.write( configfile )
 
 
 
