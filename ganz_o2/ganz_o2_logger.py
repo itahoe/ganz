@@ -62,7 +62,8 @@ class Callback:
 
 
     def timer( self ):
-        self.sens.read()
+        #self.sens.read()
+        self.sens.read_measure()
         self.sens.meas.adc_mV       = self.sens.raw_to_mV( self.sens.meas.adc_raw )
         self.sens.meas.ppm_sw       = self.sens.raw_to_ppm( self.sens.meas.adc_raw,
                                                             self.sens.meas.temp_digc,
@@ -99,8 +100,8 @@ class Callback:
 
         self.txt['PRES'     ].set_text( '%4.2f hPa' % self.sens.meas.pres_hpa   )
         self.txt['RMS'      ].set_text( '%4.2f'     % rmse                      )
-        self.txt['MCU TEMP' ].set_text( '%d °C'     % self.sens.meas.mcu_digc   )
-        self.txt['MCU VDDA' ].set_text( '%d mV'     % self.sens.meas.mcu_vdda   )
+        #self.txt['MCU TEMP' ].set_text( '%d °C'     % self.sens.meas.mcu_digc   )
+        #self.txt['MCU VDDA' ].set_text( '%d mV'     % self.sens.meas.mcu_vdda   )
 
 
 ###############################################################################

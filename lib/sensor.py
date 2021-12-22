@@ -514,7 +514,7 @@ class Sensor:
 
 
     def trim_write(self, idx):
-        if   idx is 0:
+        if   idx == 0:
             timestamp   = self.trim.timestamp[ 0]
             ppm         = int( self.trim.ppm[ 0] )
             raw         = int( self.trim.raw[ 0] )
@@ -530,7 +530,7 @@ class Sensor:
             except Exception as err:
                 return err
 
-        elif idx is 1:
+        elif idx == 1:
             timestamp   = self.trim.timestamp[ 1]
             ppm         = int( self.trim.ppm[ 1] )
             raw         = int( self.trim.raw[ 1] )
@@ -558,7 +558,7 @@ class Sensor:
     # AFE DRIFT BY TEMPERATURE
     def afe_drift_ktemp_set( self, idx, adc_raw, temp_digc ):
 
-        if idx is 0:
+        if idx == 0:
             self.ktemp.adc_0_raw            = adc_raw
             self.ktemp.t0_digc              = temp_digc
 
@@ -567,7 +567,7 @@ class Sensor:
             with open( self.cfg['DEFAULT']['filename'], "w" ) as configfile:
                 self.cfg.write( configfile )
 
-        elif idx is 1:
+        elif idx == 1:
             self.ktemp.adc_1_raw            = adc_raw
             self.ktemp.t1_digc              = temp_digc
 
@@ -627,7 +627,7 @@ class Sensor:
     # AFE DRIFT BY PRESSURE
     def afe_drift_kpres_save( self, idx, adc_raw, pres_hpa ):
 
-        if idx is 0:
+        if idx == 0:
             self.kpres.adc_0_raw            = adc_raw
             self.kpres.p0_hpa               = pres_hpa
 
@@ -636,7 +636,7 @@ class Sensor:
             with open( self.cfg['DEFAULT']['filename'], "w" ) as configfile:
                 self.cfg.write( configfile )
 
-        elif idx is 1:
+        elif idx == 1:
             self.kpres.adc_1_raw            = adc_raw
             self.kpres.p1_hpa               = pres_hpa
 
