@@ -163,7 +163,7 @@ if __name__ == '__main__':
     ax2.set(xticks=[], yticks=[])
     ax2.axis["left","right","top","bottom"].set_visible(False)
 
-    btn_ph  = Button( plt.axes([0.3, 0.90, 0.20, 0.05]), 'P HIGH'    )
+    btn_ph  = Button( plt.axes([0.3, 0.90, 0.20, 0.05]), 'P SPAN'    )
     btn_pz  = Button( plt.axes([0.3, 0.85, 0.20, 0.05]), 'P ZERO'    )
 
     btn_ph.on_clicked( lambda x: cbk.button(x, btn_ph.label.get_text()) )
@@ -184,7 +184,7 @@ if __name__ == '__main__':
                     ('SLOPE',   'gray',     ),  ]
 
     txt_trim    = [ ('P ZERO',  'gray',     ),
-                    ('P HIGH',  'gray',     ),  ]
+                    ('P SPAN',  'gray',     ),  ]
 
     htxt        = {}
 

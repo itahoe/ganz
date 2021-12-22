@@ -91,13 +91,11 @@ class Callback:
 
         rmse = self.sens.rmse( self.graph.ydata['GAS PPM'] )
 
-        self.txt['GAS SW'   ].set_text( '{:#.2f} PPM'   .format( self.sens.meas.ppm_sw  )   )
-        self.txt['GAS HW'   ].set_text( '{:#.2f} PPM'   .format( self.sens.meas.ppm_hw  )   )
-        self.txt['ADC'      ].set_text( '{:#4.2f} mV'   .format( self.sens.meas.adc_mV  )   )
-        self.txt['TEMP'     ].set_text( '{:#4.2f} °C'   .format( self.sens.meas.temp_digc ))
-        #self.txt['PRES'     ].set_text( '{:#4.2f} hPa'  .format( self.sens.meas.pres_hpa ) )
-        #self.txt['RMS'      ].set_text( '{:#4.2f}'      .format( rmse )                    )
-
+        #self.txt['GAS SW'   ].set_text( '{:#.2f} PPM'   .format( self.sens.meas.ppm_sw  )   )
+        self.txt['GAS SW'   ].set_text( '%.2f PPM'  % self.sens.meas.ppm_sw     )
+        self.txt['GAS HW'   ].set_text( '%.2f PPM'  % self.sens.meas.ppm_hw     )
+        self.txt['ADC'      ].set_text( '%4.2f mV'  % self.sens.meas.adc_mV     )
+        self.txt['TEMP'     ].set_text( '%4.2f °C'  % self.sens.meas.temp_digc  )
         self.txt['PRES'     ].set_text( '%4.2f hPa' % self.sens.meas.pres_hpa   )
         self.txt['RMS'      ].set_text( '%4.2f'     % rmse                      )
         #self.txt['MCU TEMP' ].set_text( '%d °C'     % self.sens.meas.mcu_digc   )
@@ -124,30 +122,8 @@ if __name__ == '__main__':
 
     ###########################################################################
     # FIGURE
-    #title   =   conf['MODBUS']['port'    ] + '@' + \
-    #            conf['MODBUS']['baudrate'] + ' ADDR: ' +  \
-    #            conf['MODBUS']['address' ]
-
     fig     = plt.figure()
     fig.canvas.manager.set_window_title( sens.title )
-
-    ###########################################################################
-    # GRAPH INIT
-    '''
-    param   = [
-    #   name        ymin    ymax        color       linestyle   linewidth
-    (   'PPM',      -50,    150,        'blue',     'dashed',   1,      ),
-    #(   'ADC RAW',  0,      10000000,   'orange',   'solid',    1,      ),
-    (   'ADC mV',   0,      2500,       'orange',   'solid',    1,      ),
-    (   't DIGC',   15,     45,         'red',      'dashdot',  1,      ),
-    (   'P hPa',    950,    1050,       'green',    'dotted',   1,      ), ]
-
-    xlen    = conf.getint( 'GRAPH', 'axlen' )
-    #ax      = fig.add_axes( [0.05, 0.05, 0.70, 0.90], axes_class=HostAxes )
-    ax      = fig.add_axes( [0.30, 0.05, 0.50, 0.90], axes_class=HostAxes )
-    graph   = Graph( ax, xlen, param )
-    graph.init_timestamp( graph.xdata )
-    '''
 
     ###########################################################################
     # GRAPH
@@ -194,7 +170,7 @@ if __name__ == '__main__':
     htxt        = {}
 
     ###########################################################################
-    # SENS MEASURE
+    # GUI SENS MEASURE
     txt_meas    = [ ('GAS SW',          'blue',     ),
                     ('GAS HW',          'magenta',  ),
                     ('ADC',             'orange',   ),
@@ -215,7 +191,7 @@ if __name__ == '__main__':
     htxt['RMS'].set_backgroundcolor('gray')
 
     ###########################################################################
-    # SENS CONFIG
+    # GUI SENS CONFIG
     txt_conf    = [ ('DEVICE ID',       'darkgray',     ),
                     ('HARDWARE ID',     'darkgray',     ),
                     ('FIRMWARE ID',     'darkgray',     ),
