@@ -62,19 +62,24 @@ class Callback:
 
 
     def button( self, event, label ):
-        if label == 'P SPAN':
-            self.sens.trim_p1()
-            self.conf[label]['ppm'] = str( self.sens.trim.ppm[ 1] )
-            self.conf[label]['raw'] = str( self.sens.trim.raw[ 1] )
-            self.conf_save()
-            self.txt['P SPAN'].set_text( '%.2f / %.2f' % (sens.trim.ppm[ 1], sens.raw_to_mV( sens.trim.raw[ 1]) ) )
-
-        elif label == 'P ZERO':
-            self.sens.trim_p0()
+        if   label == 'P ZERO':
+            #self.sens.trim_p0()
+            self.sens.trim_update('ZERO')
             self.conf[label]['ppm'] = str( self.sens.trim.ppm[ 0] )
             self.conf[label]['raw'] = str( self.sens.trim.raw[ 0] )
-            self.conf_save()
+            self.sens.trim_save()
             self.txt['P ZERO'].set_text( '%.2f / %.2f' % (sens.trim.ppm[ 0], sens.raw_to_mV( sens.trim.raw[ 0]) ) )
+
+        elif label == 'P SPAN':
+            #self.sens.trim_p1()
+            self.sens.trim_update('SPAN')
+            #self.conf[label]['ppm'] = str( self.sens.trim.ppm[ 1] )
+            #self.conf[label]['raw'] = str( self.sens.trim.raw[ 1] )
+            self.conf[label]['ppm'] = str( self.sens.trim.ppm[ 1] )
+            self.conf[label]['raw'] = str( self.sens.trim.raw[ 1] )
+
+            self.sens.trim_save()
+            self.txt['P SPAN'].set_text( '%.2f / %.2f' % (sens.trim.ppm[ 1], sens.raw_to_mV( sens.trim.raw[ 1]) ) )
 
         elif label == 'PS UPLOAD':
             resp    = self.sens.trim_write( 1 )
@@ -129,11 +134,6 @@ class Callback:
             print( label, 'not implemented yet' )
 
 
-    def conf_save( self ):
-        confpath   = self.conf['DEFAULT']['filename']
-        with open( confpath, "w" ) as configfile:
-            self.conf.write( configfile )
-
 
 ###############################################################################
 # MAIN
@@ -152,13 +152,8 @@ if __name__ == '__main__':
 
     ###########################################################################
     # FIGURE
-    title   =   conf['MODBUS']['port'    ] + '@' + \
-                conf['MODBUS']['baudrate'] + ' ADDR: ' +  \
-                conf['MODBUS']['address' ] + ' S/N: ' + \
-                sens.serial_number
-
     fig     = plt.figure()
-    fig.canvas.manager.set_window_title( title )
+    fig.canvas.manager.set_window_title( sens.title )
 
     ###########################################################################
     # GRAPH
@@ -219,13 +214,14 @@ if __name__ == '__main__':
         htxt[ key[ 0] ].set_color(key[ 1])
         ypos    -= 0.05
 
+
     htxt['DEVICE ID'        ].set_text( sens.device_id                      )
     htxt['HARDWARE ID'      ].set_text( sens.hardware_id                    )
     htxt['FIRMWARE ID'      ].set_text( sens.firmware_id                    )
-    htxt['LAST ERROR'       ].set_text( '%04Xh'     % sens.last_error       )
-    htxt['STARTS COUNTER'   ].set_text( sens.starts_counter                 )
-    htxt['ADC SPAN'         ].set_text( '%d mV'     % sens.adc_span         )
-    htxt['ADC RESOLUTION'   ].set_text( '%d bit'    % sens.adc_resolution   )
+    htxt['LAST ERROR'       ].set_text( '%04Xh'     % sens.sts.error_code   )
+    htxt['STARTS COUNTER'   ].set_text( sens.sts.starts_cnt                 )
+    htxt['ADC SPAN'         ].set_text( '%d mV'     % sens.conf.adc_vref    )
+    htxt['ADC RESOLUTION'   ].set_text( '%d bit'    % sens.conf.adc_bits    )
 
     ###########################################################################
     # SENS MEASURE

@@ -27,13 +27,12 @@ class   SensorTitle:
 
 class   SensorConfig:
     __slots__       =   'device_id', 'hardware_id', 'firmware_id', 'serial_number', \
-                        'last_error', 'starts_counter', 'adc_span', 'adc_resolution' \
-                        'adc_mv_per_bit'
+                        'adc_vref', 'adc_bits', 'adc_mv_per_bit'
 
 class   SensorStatus:
-    __slots__       =   'error_code', 'starts_cnt',                         \
-                        'adc_vref', 'adc_res_bits',                         \
-                        'raw2ppm_fv', 'raw2ppm_ft', 'raw2ppm_fp',
+    __slots__       =   'error_code', 'starts_cnt',
+                        #'adc_vref', 'adc_res_bits',                         \
+                        #'raw2ppm_fv', 'raw2ppm_ft', 'raw2ppm_fp',
 
 class   SensorMeasure:
     __slots__       =   'adc_raw', 'adc_mV', 'ppm_sw', 'ppm_hw',            \
@@ -103,23 +102,29 @@ class Sensor:
                                 'GAIN x64'  :6,
                                 'GAIN x128' :7, }
 
-        self.config     = dict.fromkeys([   'device_id',
-                                            'hardware_id',
-                                            'firmware_id',
-                                            'serial_number' ])
 
-        self.device_id      = [None] * 4
-        #self.hardware_id    = [None] * 4
+        self.device_id      = [None] * 2
+        self.hardware_id    = [None] * 2
+        self.firmware_id    = [None] * 4
+        self.serial_number  = [None] * 8
+
 
         __slots__           = 'y', 'p',
 
 
         self.modbus         = SensorModbus()
-        #self.config         = SensorConfig()
+        self.conf           = SensorConfig()
         self.sts            = SensorStatus()
         self.meas           = SensorMeasure()
         self.ktemp          = SensorAfeDriftKtemp()
         self.kpres          = SensorAfeDriftKpres()
+
+        self.conf.adc_vref  = 0
+        self.conf.adc_bits  = 0
+        self.conf.adc_mv_per_bit  = 0.0
+
+        self.sts.error_code = 0x0000000000
+        self.sts.starts_cnt = 0
 
         self.meas.adc_raw   = None
         self.meas.adc_mV    = None
@@ -139,7 +144,7 @@ class Sensor:
         self.trim.ppm[       1] = cfg.getfloat( 'P SPAN', 'ppm'         )
         self.trim.timestamp[ 1] = cfg.getint(   'P ZERO', 'timestamp'   )
 
-        self.trim.slope, self.trim.offset   = self.trim_update( self.trim )
+        self.trim.slope, self.trim.offset   = self.trim_calc( self.trim )
 
         ########################################################################
         # AFE DRIFT BY TEMP RESTORE
@@ -186,18 +191,6 @@ class Sensor:
 
         #######################################################################
         # MODBUS INIT
-        '''
-        self.modbus_address = cfg.getint('MODBUS', 'address')
-        self.master     = modbus_rtu.RtuMaster( serial.Serial(  port        = cfg.get('MODBUS', 'port'),
-                                                                baudrate    = cfg.getint('MODBUS', 'baudrate'),
-                                                                bytesize=8,
-                                                                parity='N',
-                                                                stopbits=1,
-                                                                xonxoff=0 )     )
-        self.master.set_timeout( 2.0 )
-        self.master.set_verbose( False )
-        '''
-
         self.modbus.port    = cfg.get(      'MODBUS',   'port'      )
         self.modbus.baud    = cfg.getint(   'MODBUS',   'baudrate'  )
         self.modbus.addr    = cfg.getint(   'MODBUS',   'address'   )
@@ -215,14 +208,11 @@ class Sensor:
         #except modbus_tk.modbus.ModbusError:
         except:
             print( 'Can not open %s' % self.modbus.port )
-            self.modbus.port    = None
-            self.modbus.baud    = None
-            self.modbus.master  = None
-
-
+            #self.modbus.port    = None
+            #self.modbus.baud    = None
+            #self.modbus.master  = None
 
         self.read_config()
-
 
         self.title  = 'Source: '
         self.title  += cfg.get('MODBUS','port'      ) + '@'
@@ -234,46 +224,14 @@ class Sensor:
     # READ CONFIG
     def read_config(self):
         '''
-        fmt = '>BB BB hh BBBB hh HHHHHHHH H H hh H H hh H H hhhhhh'
-
-        d   = self.master.execute(
-                slave               = self.modbus_address,
-                function_code       = cst.READ_HOLDING_REGISTERS,
-                starting_address    = self.hreg['HREG_CONF_BEGIN'],
-                quantity_of_x       = 32,
-                data_format         = fmt )
-
-        self.device_id      = str( '%02X%02X' % (d[ 0], d[ 1]) )
-        self.hardware_id    = str( '%02X%02X' % (d[ 2], d[ 3]) )
-        #self.firmware_id    = str( '%02X%02X%02X%02X%02X%02X' % (d[ 6], d[ 7], d[ 8], d[ 9], d[10], d[11]) )
-        self.firmware_id    = str( '%02X%02X%02X%02X' % (d[ 6], d[ 7], d[ 8], d[ 9]) )
-
-        self.serial_number  =   f'{d[12]:04X}{d[13]:04X}{d[14]:04X}{d[15]:04X}' + \
-                                f'{d[16]:04X}{d[17]:04X}{d[18]:04X}{d[19]:04X}'
-
-        self.last_error     = d[20]
-        self.starts_counter = d[21]
-        self.adc_span       = d[24]
-        self.adc_resolution = d[25]
-        self.adc_mv_per_bit = float( self.adc_span / (2**self.adc_resolution) )
-        '''
-
         slave_addr      = self.modbus.addr
         fcode           = cst.READ_HOLDING_REGISTERS
         start_addr      = self.hreg['HREG_CONF_BEGIN']
         len             = 32
         fmt             = '>BB BB hh BBBB hh HHHHHHHH H H hh H H hh H H hhhhhh'
 
-        '''
-        if self.master:
-            print( self.master )
-        else:
-            print( 'NO self.master' )
-        '''
-
         if self.modbus.master != None:
             try:
-                #d = self.modbus.master.execute( slave_addr, fcode, start_addr, len, fmt )
                 d = self.modbus.master.execute( slave_addr, fcode, start_addr, len, fmt )
 
                 self.device_id      = str( '%02X%02X' % (d[ 0], d[ 1]) )
@@ -281,196 +239,52 @@ class Sensor:
                 self.firmware_id    = str( '%02X%02X%02X%02X' % (d[ 6], d[ 7], d[ 8], d[ 9]) )
                 self.serial_number  =   f'{d[12]:04X}{d[13]:04X}{d[14]:04X}{d[15]:04X}' + \
                                         f'{d[16]:04X}{d[17]:04X}{d[18]:04X}{d[19]:04X}'
-                self.last_error     = d[20]
-                self.starts_counter = d[21]
-                self.adc_span       = d[24]
-                self.adc_resolution = d[25]
-                self.adc_mv_per_bit = float( self.adc_span / (2**self.adc_resolution) )
+                self.sts.error_code = d[20]
+                self.sts.starts_cnt = d[21]
+                self.sts.adc_vref   = d[24]
+                self.sts.adc_res_bits = d[25]
+                self.adc_mv_per_bit = float( self.sts.adc_vref / (2**self.sts.adc_res_bits) )
 
-            #except modbus_tk.modbus.ModbusError, e:
             except modbus_tk.modbus.ModbusInvalidResponseError:
-            #except modbus_tk.modbus.ModbusError:
+                print( 'Modbus Response Error' )
+        '''
+
+        slave_addr      = self.modbus.addr
+        fcode           = cst.READ_HOLDING_REGISTERS
+        start_addr      = self.hreg['HREG_CONF_BEGIN']
+        len             = 32
+        fmt             = '>H H hh HH hh HHHHHHHH H H hh H H hh H H hhhhhh'
+
+        if self.modbus.master != None:
+            try:
+                d = self.modbus.master.execute( slave_addr, fcode, start_addr, len, fmt )
+
+                self.device_id      = str( '%04X' % d[ 0] )
+                self.hardware_id    = str( '%04X' % d[ 1] )
+                self.firmware_id    = str( '%04X%04X' % (d[ 4], d[ 5] ) )
+                self.serial_number  = str( '%04X%04X%04X%04X%04X%04X%04X%04X' % ( d[ 8], d[ 9], d[ 10], d[11], d[12], d[13], d[14], d[15] ) )
+                self.sts.error_code = d[16]
+                self.sts.starts_cnt = d[17]
+                self.conf.adc_vref  = d[20]
+                self.conf.adc_bits  = d[21]
+                self.conf.adc_mv_per_bit = float( self.conf.adc_vref / (2**self.conf.adc_bits) )
+
+            except modbus_tk.modbus.ModbusInvalidResponseError:
                 print( 'Modbus Response Error' )
 
 
 
 
-    ###########################################################################
-    # READ TRIM
-    def read_trim( self ):
-        fmt = '>I f f hh I f f hh'
-        d = self.master.execute(    slave               = self.modbus_address,
-                                    function_code       = cst.READ_HOLDING_REGISTERS,
-                                    starting_address    = self.hreg['HREG_TRIM'],
-                                    quantity_of_x       = 16,
-                                    data_format         = fmt )
-
-        self.trim.timestamp[ 0] = int(      d[ 0])
-        self.trim.ppm[       0] = float(    d[ 1])
-        self.trim.raw[       0] = float(    d[ 2])
-
-        self.trim.timestamp[ 1] = int(      d[ 5])
-        self.trim.ppm[       1] = float(    d[ 6])
-        self.trim.raw[       1] = float(    d[ 7])
-
-
-    ###########################################################################
-    # TRIM
-    def trim_zero_read(self):
-        data = self.master.execute( slave               = self.modbus_address,
-                                    function_code       = cst.READ_HOLDING_REGISTERS,
-                                    starting_address    = self.hreg['HREG_TRIM_ZERO'],
-                                    quantity_of_x       = 8,
-                                    data_format         = '>I f f hh' )
-
-        timestamp   = data[ 0]
-        ppm         = data[ 1]
-        raw         = data[ 2]
-
-        #return ppm, raw, timestamp
-        return ppm
-
-
-    def trim_span_read(self):
-        data = self.master.execute( slave               = self.modbus_address,
-                                    function_code       = cst.READ_HOLDING_REGISTERS,
-                                    starting_address    = self.hreg['HREG_TRIM_SPAN'],
-                                    quantity_of_x       = 8,
-                                    data_format         = '>I f f hh' )
-
-        timestamp   = data[ 0]
-        ppm         = data[ 1]
-        raw         = data[ 2]
-
-        #return ppm, raw, timestamp
-        return ppm
-
-
-    ###########################################################################
-    # AFE OFFSET
-    def afe_offset_get(self):
-        data = self.master.execute( slave               = self.modbus_address,
-                                    function_code       = cst.READ_HOLDING_REGISTERS,
-                                    starting_address    = self.hreg['HREG_CONF_AFE_BIAS'],
-                                    quantity_of_x       = 1,
-                                    data_format         = '>h'                      )
-        return int( data[0] )
-
-
-    def afe_offset_set(self, val):
-        self.master.execute(        slave               = self.modbus_address,
-                                    function_code       = cst.WRITE_SINGLE_REGISTER,
-                                    starting_address    = self.hreg['HREG_CONF_AFE_BIAS'],
-                                    output_value        = val )
-
-
-    ###########################################################################
-    # AFE ADC MODE
-    def afe_adc_mode_get(self):
-        data = self.master.execute( slave               = self.modbus_address,
-                                    function_code       = cst.READ_HOLDING_REGISTERS,
-                                    starting_address    = self.hreg['HREG_CONF_AD7799_MODE'],
-                                    quantity_of_x       = 1,
-                                    data_format         = '>h'                      )
-        return int( data[0] )
-
-
-    def afe_adc_mode_set(self, val):
-        self.master.execute(        slave               = self.modbus_address,
-                                    function_code       = cst.WRITE_SINGLE_REGISTER,
-                                    starting_address    = self.hreg['HREG_CONF_AD7799_MODE'],
-                                    output_value        = val )
-
-    ###########################################################################
-    # AFE ADC CONF
-    def afe_adc_conf_get(self):
-        data = self.master.execute( slave               = self.modbus_address,
-                                    function_code       = cst.READ_HOLDING_REGISTERS,
-                                    starting_address    = self.hreg['HREG_CONF_AD7799_CONF'],
-                                    quantity_of_x       = 1,
-                                    data_format         = '>h'                      )
-
-        return int( data[0] )
-
-
-    def afe_adc_conf_set(self, val):
-        self.master.execute(        slave               = self.modbus_address,
-                                    function_code       = cst.WRITE_SINGLE_REGISTER,
-                                    starting_address    = self.hreg['HREG_CONF_AD7799_CONF'],
-                                    output_value        = val )
-
-    ###########################################################################
-    # AFE ADC CHANNEL
-    def afe_adc_channel_get(self):
-        data = self.master.execute( slave               = self.modbus_address,
-                                    function_code       = cst.READ_HOLDING_REGISTERS,
-                                    starting_address    = self.hreg['HREG_CONF_AD7799_CHANNEL'],
-                                    quantity_of_x       = 1,
-                                    data_format         = '>h' )
-
-        return int(data[0])
-
-
-    def afe_adc_channel_set(self, val):
-        self.master.execute(        slave               = self.modbus_address,
-                                    function_code       = cst.WRITE_SINGLE_REGISTER,
-                                    starting_address    = self.hreg['HREG_CONF_AD7799_CHANNEL'],
-                                    output_value        = val )
-
-
-    ###########################################################################
-    # AFE ADC GAIN
-    def afe_adc_gain_get(self):
-        data = self.master.execute( slave               = self.modbus_address,
-                                    function_code       = cst.READ_HOLDING_REGISTERS,
-                                    starting_address    = self.hreg['HREG_CONF_AD7799_GAIN'],
-                                    quantity_of_x       = 1,
-                                    data_format         = '>h' )
-        return int( data[0] )
-
-
-    def afe_adc_gain_set(self, val):
-        self.master.execute(        slave               = self.modbus_address,
-                                    function_code       = cst.WRITE_SINGLE_REGISTER,
-                                    starting_address    = self.hreg['HREG_CONF_AD7799_GAIN'],
-                                    output_value        = val )
-
-
-    ###########################################################################
-    # AFE CONTROL
-    def afe_ctl_unipolar_set(self, val):
-        self.master.execute(        slave               = self.modbus_address,
-                                    function_code       = cst.WRITE_SINGLE_COIL,
-                                    starting_address    = self.coil['AFE_CTL_UNIPOLAR'],
-                                    output_value        = int(1) if val else int(0) )
-
-    def afe_ctl_buffer_set(self, val):
-        self.master.execute(        slave               = self.modbus_address,
-                                    function_code       = cst.WRITE_SINGLE_COIL,
-                                    starting_address    = self.coil['AFE_CTL_BUFFER_ENABLE'],
-                                    output_value        = int(1) if val else int(0) )
-
-    def afe_ctl_pswitch_set(self, val):
-        self.master.execute(        slave               = self.modbus_address,
-                                    function_code       = cst.WRITE_SINGLE_COIL,
-                                    starting_address    = self.coil['AFE_CTL_PSWITCH'],
-                                    output_value        = int(1) if val else int(0) )
-
-    ###########################################################################
-    # SLOPE
-    def slope_get(self, data):
-        slope   = 0
-        return slope
 
     ###########################################################################
     # READ MEASURE
     def read_measure(self):
         fmt = '>fff hh h h hh h h hh I I I hhhhhhhhhh'
-        d = self.master.execute(    slave               = self.modbus_address,
-                                    function_code       = cst.READ_HOLDING_REGISTERS,
-                                    starting_address    = self.hreg['HREG_MEAS_BEGIN'],
-                                    quantity_of_x       = 32,
-                                    data_format         = fmt )
+        d = self.modbus.master.execute( slave               = self.modbus.addr,
+                                        function_code       = cst.READ_HOLDING_REGISTERS,
+                                        starting_address    = self.hreg['HREG_MEAS_BEGIN'],
+                                        quantity_of_x       = 32,
+                                        data_format         = fmt )
 
         self.meas.ppm_hw        = float(    d[ 0])
         self.meas.temp_digc     = float(    d[ 1])
@@ -488,21 +302,21 @@ class Sensor:
     ###########################################################################
     # READ
     def read(self):
-        d = self.master.execute(    slave               = self.modbus_address,
-                                    function_code       = cst.READ_HOLDING_REGISTERS,
-                                    starting_address    = 16,
-                                    quantity_of_x       = 32,
-                                    data_format         = '>hhhhhhhhhhffffffhhiiihh' )
+        d = self.modbus.master.execute( slave               = self.modbus.addr,
+                                        function_code       = cst.READ_HOLDING_REGISTERS,
+                                        starting_address    = 16,
+                                        quantity_of_x       = 32,
+                                        data_format         = '>hhhhhhhhhhffffffhhiiihh' )
 
         self.sts.error_code     = int(      d[ 0])
         self.sts.starts_cnt     = int(      d[ 1])
-        self.sts.adc_vref       = int(      d[ 4])
-        self.sts.adc_res_bits   = int(      d[ 5])
+        self.conf.adc_vref      = int(      d[ 4])
+        self.conf.adc_bits      = int(      d[ 5])
         self.meas.mcu_digc      = int(      d[ 8])
         self.meas.mcu_vdda      = int(      d[ 9])
-        self.sts.raw2ppm_fv     = float(    d[10])
-        self.sts.raw2ppm_ft     = float(    d[11])
-        self.sts.raw2ppm_fp     = float(    d[12])
+        #self.sts.raw2ppm_fv     = float(    d[10])
+        #self.sts.raw2ppm_ft     = float(    d[11])
+        #self.sts.raw2ppm_fp     = float(    d[12])
         self.meas.ppm_hw        = float(    d[13])
         self.meas.temp_digc     = float(    d[14])
         self.meas.pres_hpa      = float(    d[15])
@@ -517,7 +331,7 @@ class Sensor:
     ###########################################################################
     # RAW 2 mV
     def raw_to_mV(self, raw):
-        return float(raw * self.adc_mv_per_bit)
+        return float(raw * self.conf.adc_mv_per_bit)
 
     ###########################################################################
     # Ktemp CELL
@@ -537,16 +351,12 @@ class Sensor:
     ###########################################################################
     # RAW 2 PPM
     def raw_to_ppm(self, raw, t, hpa ):
-        t_ofst = t * self.ktemp.ktemp
-        ppm = raw
-
-        ppm -= self.trim.offset
-
-        ppm *= self.ktemp_afe_get( t )
-
-        ppm *= self.trim.slope
-
-        #ppm *= self.ktemp_cell_get( t )
+        t_ofst  = t * self.ktemp.ktemp
+        ppm     = raw
+        ppm     -= self.trim.offset
+        ppm     *= self.ktemp_afe_get( t )
+        ppm     *= self.trim.slope
+        #ppm     *= self.ktemp_cell_get( t )
 
         #ppm = self.trim.offset + (self.trim.slope * (raw + ktemp) )
         #ppm = (raw + temp_ofst + zero_ofst) * self.trim.slope
@@ -556,36 +366,33 @@ class Sensor:
     ###########################################################################
     # RAW 2 PPM
     def raw_to_ppm_lpf(self, raw, t_digc, hpa ):
-
-
         self.xn[1:]     = self.xn[:-1]
         self.xn[0]      = raw
         #self.xn[0]      = raw + self.ktemp.ktemp + self.kpres.kpres
-
         #self.tn[1:]     = self.tn[:-1]
         #self.tn[0]      = t_digc
-
         y               = lfilter(self.taps, 1.0, self.xn )
         self.y          = y[-1]
         ppm = self.trim.offset + (self.trim.slope * self.y)
         #ppm = self.trim.slope * (self.y + self.trim.offset)
-
         return( ppm )
 
     ###########################################################################
     # TRIM
-    def trim_p0(self):
-        self.trim.raw[ 0] = self.y
-        self.trim.slope, self.trim.offset = self.trim_update( self.trim )
+    def trim_update(self, idx ):
+        if idx == 'ZERO':
+            #self.trim.raw[ 0] = self.y
+            #self.trim.raw[ 0] = self.xn[0]
+            self.trim.raw[ 0] = self.meas.adc_raw
+            self.trim.slope, self.trim.offset = self.trim_calc( self.trim )
+        if idx == 'SPAN':
+            #self.trim.raw[ 1] = self.y
+            #self.trim.raw[ 1] = self.xn[0]
+            self.trim.raw[ 1] = self.meas.adc_raw
+            self.trim.slope, self.trim.offset = self.trim_calc( self.trim )
 
-    def trim_p1(self):
-        self.trim.raw[ 1] = self.y
-        self.trim.slope, self.trim.offset = self.trim_update( self.trim )
-
-    def trim_update( self, trim ):
-
-        #print( 'trim_update', self.meas.adc_raw, trim.raw[ 0], trim.raw[ 1] )
-
+    ###########################################################################
+    def trim_calc( self, trim ):
         if (trim.raw[ 1] - trim.raw[ 0]) != 0.0:
             trim.slope  = (trim.ppm[ 1] - trim.ppm[ 0]) / (trim.raw[ 1] - trim.raw[ 0])
             trim.offset = trim.ppm[ 1] - (trim.raw[ 1] * trim.slope)
@@ -594,7 +401,7 @@ class Sensor:
             trim.offset  = 0.0
 
         #print( 'slope\toffset\t\tppm[ 0]\t\tppm[ 1]\t\traw[ 0]\t\traw[ 1]')
-        #print( '%.4f\t' % trim.slope, '%.4f\t' % trim.offset, '%.2f\t\t' % trim.ppm[ 0], '%.2f\t\t' % trim.ppm[ 1], '%.2f\t' % trim.raw[ 0], '%.2f\t' % trim.raw[ 1] )
+        print( '%.4f\t' % trim.slope, '%.4f\t' % trim.offset, '%.2f\t\t' % trim.ppm[ 0], '%.2f\t\t' % trim.ppm[ 1], '%.2f\t' % trim.raw[ 0], '%.2f\t' % trim.raw[ 1] )
 
         return trim.slope, trim.offset
 
@@ -603,35 +410,41 @@ class Sensor:
     #        self.cfg.write( configfile )
 
 
+    ###########################################################################
+    def trim_save( self ):
+        with open( self.cfg['DEFAULT']['config_path'], "w" ) as configfile:
+            self.cfg.write( configfile )
+
+    ###########################################################################
     def trim_write(self, idx):
-        if   idx is 0:
+        if   idx == 0:
             timestamp   = self.trim.timestamp[ 0]
             ppm         = int( self.trim.ppm[ 0] )
             raw         = int( self.trim.raw[ 0] )
             try:
-                self.master.execute(    slave               = self.modbus_address,
-                                        function_code       = cst.WRITE_MULTIPLE_REGISTERS,
-                                        starting_address    = self.hreg['HREG_TRIM_ZERO'],
-                                        quantity_of_x       = 6,
-                                        output_value        = [ timestamp, ppm, raw ],
-                                        data_format         = '>III' )
+                self.modbus.master.execute( slave               = self.modbus.addr,
+                                            function_code       = cst.WRITE_MULTIPLE_REGISTERS,
+                                            starting_address    = self.hreg['HREG_TRIM_ZERO'],
+                                            quantity_of_x       = 6,
+                                            output_value        = [ timestamp, ppm, raw ],
+                                            data_format         = '>III' )
                 return 'Success'
 
             except Exception as err:
                 return err
 
-        elif idx is 1:
+        elif idx == 1:
             timestamp   = self.trim.timestamp[ 1]
             ppm         = int( self.trim.ppm[ 1] )
             raw         = int( self.trim.raw[ 1] )
 
             try:
-                self.master.execute(    slave               = self.modbus_address,
-                                        function_code       = cst.WRITE_MULTIPLE_REGISTERS,
-                                        starting_address    = self.hreg['HREG_TRIM_SPAN'],
-                                        quantity_of_x       = 6,
-                                        output_value        = [ timestamp, ppm, raw ],
-                                        data_format         = '>III' )
+                self.modbus.master.execute( slave               = self.modbus.addr,
+                                            function_code       = cst.WRITE_MULTIPLE_REGISTERS,
+                                            starting_address    = self.hreg['HREG_TRIM_SPAN'],
+                                            quantity_of_x       = 6,
+                                            output_value        = [ timestamp, ppm, raw ],
+                                            data_format         = '>III' )
                 return 'Success'
 
             except Exception as err:
@@ -648,22 +461,22 @@ class Sensor:
     # AFE DRIFT BY TEMPERATURE
     def afe_drift_ktemp_set( self, idx, adc_raw, temp_digc ):
 
-        if idx is 0:
+        if idx == 0:
             self.ktemp.adc_0_raw            = adc_raw
             self.ktemp.t0_digc              = temp_digc
 
             self.cfg['KTEMP']['adc_0_raw']  = str( adc_raw )
             self.cfg['KTEMP']['t0_digc']    = str( temp_digc )
-            with open( self.cfg['DEFAULT']['filename'], "w" ) as configfile:
+            with open( self.cfg['DEFAULT']['config_path'], "w" ) as configfile:
                 self.cfg.write( configfile )
 
-        elif idx is 1:
+        elif idx == 1:
             self.ktemp.adc_1_raw            = adc_raw
             self.ktemp.t1_digc              = temp_digc
 
             self.cfg['KTEMP']['adc_1_raw']  = str( adc_raw )
             self.cfg['KTEMP']['t1_digc']    = str( temp_digc )
-            with open( self.cfg['DEFAULT']['filename'], "w" ) as configfile:
+            with open( self.cfg['DEFAULT']['config_path'], "w" ) as configfile:
                 self.cfg.write( configfile )
 
 
@@ -688,11 +501,11 @@ class Sensor:
 
 
     def afe_drift_ktemp_read( self ):
-        d = self.master.execute(    slave               = self.modbus_address,
-                                    function_code       = cst.READ_HOLDING_REGISTERS,
-                                    starting_address    = self.hreg['HREG_CONF_AFE_DRIFT_K_TEMP'],
-                                    quantity_of_x       = 2,
-                                    data_format         = '>f' )
+        d = self.modbus.master.execute( slave               = self.modbus.addr,
+                                        function_code       = cst.READ_HOLDING_REGISTERS,
+                                        starting_address    = self.hreg['HREG_CONF_AFE_DRIFT_K_TEMP'],
+                                        quantity_of_x       = 2,
+                                        data_format         = '>f' )
 
         print( d[ 0] )
         return( d[ 0] )
@@ -701,7 +514,7 @@ class Sensor:
     def afe_drift_ktemp_upload( self, ktemp ):
         #print( ktemp )
         try:
-            self.master.execute(        slave               = self.modbus_address,
+            self.modbus.master.execute( slave               = self.modbus.addr,
                                         function_code       = cst.WRITE_MULTIPLE_REGISTERS,
                                         starting_address    = self.hreg['HREG_CONF_AFE_DRIFT_K_TEMP'],
                                         #starting_address    = 0x0350,
@@ -717,22 +530,22 @@ class Sensor:
     # AFE DRIFT BY PRESSURE
     def afe_drift_kpres_save( self, idx, adc_raw, pres_hpa ):
 
-        if idx is 0:
+        if idx == 0:
             self.kpres.adc_0_raw            = adc_raw
             self.kpres.p0_hpa               = pres_hpa
 
             self.cfg['KPRES']['adc_0_raw']  = str( adc_raw )
             self.cfg['KPRES']['p0_hpa']     = str( pres_hpa )
-            with open( self.cfg['DEFAULT']['filename'], "w" ) as configfile:
+            with open( self.cfg['DEFAULT']['config_path'], "w" ) as configfile:
                 self.cfg.write( configfile )
 
-        elif idx is 1:
+        elif idx == 1:
             self.kpres.adc_1_raw            = adc_raw
             self.kpres.p1_hpa               = pres_hpa
 
             self.cfg['KPRES']['adc_1_raw']  = str( adc_raw )
             self.cfg['KPRES']['p1_hpa']     = str( pres_hpa )
-            with open( self.cfg['DEFAULT']['filename'], "w" ) as configfile:
+            with open( self.cfg['DEFAULT']['config_path'], "w" ) as configfile:
                 self.cfg.write( configfile )
 
 
@@ -755,18 +568,18 @@ class Sensor:
 
 
     def afe_drift_kpres_read( self ):
-        d = self.master.execute(    slave               = self.modbus_address,
-                                    function_code       = cst.READ_HOLDING_REGISTERS,
-                                    starting_address    = self.hreg['HREG_CONF_AFE_DRIFT_K_PRES'],
-                                    quantity_of_x       = 2,
-                                    data_format         = '>f' )
+        d = self.modbus.master.execute( slave               = self.modbus.addr,
+                                        function_code       = cst.READ_HOLDING_REGISTERS,
+                                        starting_address    = self.hreg['HREG_CONF_AFE_DRIFT_K_PRES'],
+                                        quantity_of_x       = 2,
+                                        data_format         = '>f' )
 
         return( d[ 0] )
 
 
     def afe_drift_kpres_upload( self, kpres ):
         try:
-            self.master.execute(        slave               = self.modbus_address,
+            self.modbus.master.execute( slave               = self.modbus.addr,
                                         function_code       = cst.WRITE_MULTIPLE_REGISTERS,
                                         starting_address    = self.hreg['HREG_CONF_AFE_DRIFT_K_PRES'],
                                         #starting_address    = 0x0350,
@@ -777,6 +590,175 @@ class Sensor:
 
         except Exception as err:
             return err
+
+
+
+    ###########################################################################
+    # READ TRIM
+    def read_trim( self ):
+        fmt = '>I f f hh I f f hh'
+        d = self.modbus.master.execute( slave               = self.modbus.addr,
+                                        function_code       = cst.READ_HOLDING_REGISTERS,
+                                        starting_address    = self.hreg['HREG_TRIM'],
+                                        quantity_of_x       = 16,
+                                        data_format         = fmt )
+
+        self.trim.timestamp[ 0] = int(      d[ 0])
+        self.trim.ppm[       0] = float(    d[ 1])
+        self.trim.raw[       0] = float(    d[ 2])
+
+        self.trim.timestamp[ 1] = int(      d[ 5])
+        self.trim.ppm[       1] = float(    d[ 6])
+        self.trim.raw[       1] = float(    d[ 7])
+
+
+    ###########################################################################
+    # TRIM
+    def trim_zero_read(self):
+        data = self.modbus.master.execute(  slave               = self.modbus.addr,
+                                            function_code       = cst.READ_HOLDING_REGISTERS,
+                                            starting_address    = self.hreg['HREG_TRIM_ZERO'],
+                                            quantity_of_x       = 8,
+                                            data_format         = '>I f f hh' )
+
+        timestamp   = data[ 0]
+        ppm         = data[ 1]
+        raw         = data[ 2]
+
+        #return ppm, raw, timestamp
+        return ppm
+
+
+    def trim_span_read(self):
+        data = self.modbus.master.execute(  slave               = self.modbus.addr,
+                                            function_code       = cst.READ_HOLDING_REGISTERS,
+                                            starting_address    = self.hreg['HREG_TRIM_SPAN'],
+                                            quantity_of_x       = 8,
+                                            data_format         = '>I f f hh' )
+
+        timestamp   = data[ 0]
+        ppm         = data[ 1]
+        raw         = data[ 2]
+
+        #return ppm, raw, timestamp
+        return ppm
+
+
+    ###########################################################################
+    # AFE OFFSET
+    def afe_offset_get(self):
+        data = self.modbus.master.execute(  slave               = self.modbus.addr,
+                                            function_code       = cst.READ_HOLDING_REGISTERS,
+                                            starting_address    = self.hreg['HREG_CONF_AFE_BIAS'],
+                                            quantity_of_x       = 1,
+                                            data_format         = '>h'                      )
+        return int( data[0] )
+
+
+    def afe_offset_set(self, val):
+        self.modbus.master.execute(     slave               = self.modbus.addr,
+                                        function_code       = cst.WRITE_SINGLE_REGISTER,
+                                        starting_address    = self.hreg['HREG_CONF_AFE_BIAS'],
+                                        output_value        = val )
+
+
+    ###########################################################################
+    # AFE ADC MODE
+    def afe_adc_mode_get(self):
+        data = self.modbus.master.execute(  slave               = self.modbus.addr,
+                                            function_code       = cst.READ_HOLDING_REGISTERS,
+                                            starting_address    = self.hreg['HREG_CONF_AD7799_MODE'],
+                                            quantity_of_x       = 1,
+                                            data_format         = '>h'                      )
+        return int( data[0] )
+
+
+    def afe_adc_mode_set(self, val):
+        self.modbus.master.execute( slave               = self.modbus.addr,
+                                    function_code       = cst.WRITE_SINGLE_REGISTER,
+                                    starting_address    = self.hreg['HREG_CONF_AD7799_MODE'],
+                                    output_value        = val )
+
+    ###########################################################################
+    # AFE ADC CONF
+    def afe_adc_conf_get(self):
+        data = self.modbus.master.execute(  slave               = self.modbus.addr,
+                                            function_code       = cst.READ_HOLDING_REGISTERS,
+                                            starting_address    = self.hreg['HREG_CONF_AD7799_CONF'],
+                                            quantity_of_x       = 1,
+                                            data_format         = '>h'                      )
+
+        return int( data[0] )
+
+
+    def afe_adc_conf_set(self, val):
+        self.modbus.master.execute( slave               = self.modbus.addr,
+                                    function_code       = cst.WRITE_SINGLE_REGISTER,
+                                    starting_address    = self.hreg['HREG_CONF_AD7799_CONF'],
+                                    output_value        = val )
+
+    ###########################################################################
+    # AFE ADC CHANNEL
+    def afe_adc_channel_get(self):
+        data = self.modbus.master.execute(  slave               = self.modbus.addr,
+                                            function_code       = cst.READ_HOLDING_REGISTERS,
+                                            starting_address    = self.hreg['HREG_CONF_AD7799_CHANNEL'],
+                                            quantity_of_x       = 1,
+                                            data_format         = '>h' )
+
+        return int(data[0])
+
+
+    def afe_adc_channel_set(self, val):
+        self.modbus.master.execute( slave               = self.modbus.addr,
+                                    function_code       = cst.WRITE_SINGLE_REGISTER,
+                                    starting_address    = self.hreg['HREG_CONF_AD7799_CHANNEL'],
+                                    output_value        = val )
+
+
+    ###########################################################################
+    # AFE ADC GAIN
+    def afe_adc_gain_get(self):
+        data = self.modbus.master.execute(  slave               = self.modbus.addr,
+                                            function_code       = cst.READ_HOLDING_REGISTERS,
+                                            starting_address    = self.hreg['HREG_CONF_AD7799_GAIN'],
+                                            quantity_of_x       = 1,
+                                            data_format         = '>h' )
+        return int( data[0] )
+
+
+    def afe_adc_gain_set(self, val):
+        self.modbus.master.execute( slave               = self.modbus.addr,
+                                    function_code       = cst.WRITE_SINGLE_REGISTER,
+                                    starting_address    = self.hreg['HREG_CONF_AD7799_GAIN'],
+                                    output_value        = val )
+
+
+    ###########################################################################
+    # AFE CONTROL
+    def afe_ctl_unipolar_set(self, val):
+        self.modbus.master.execute( slave               = self.modbus.addr,
+                                    function_code       = cst.WRITE_SINGLE_COIL,
+                                    starting_address    = self.coil['AFE_CTL_UNIPOLAR'],
+                                    output_value        = int(1) if val else int(0) )
+
+    def afe_ctl_buffer_set(self, val):
+        self.modbus.master.execute( slave               = self.modbus.addr,
+                                    function_code       = cst.WRITE_SINGLE_COIL,
+                                    starting_address    = self.coil['AFE_CTL_BUFFER_ENABLE'],
+                                    output_value        = int(1) if val else int(0) )
+
+    def afe_ctl_pswitch_set(self, val):
+        self.modbus.master.execute( slave               = self.modbus.addr,
+                                    function_code       = cst.WRITE_SINGLE_COIL,
+                                    starting_address    = self.coil['AFE_CTL_PSWITCH'],
+                                    output_value        = int(1) if val else int(0) )
+
+    ###########################################################################
+    # SLOPE
+    def slope_get(self, data):
+        slope   = 0
+        return slope
 
     ###########################################################################
     # ROOT MEAN SQUARE ERROR
@@ -811,7 +793,7 @@ class Callback:
         #self.cfg['SENSOR']['offset'] = str( self.sens.offset )
         self.cfg['SENSOR']['p0_raw'] = str( self.sens.p0_raw )
         self.cfg['SENSOR']['p1_raw'] = str( self.sens.p1_raw )
-        with open( self.cfg['DEFAULT']['filename'], "w" ) as configfile:
+        with open( self.cfg['DEFAULT']['config_path'], "w" ) as configfile:
             self.cfg.write( configfile )
 
 
@@ -822,7 +804,7 @@ class Callback:
         #self.cfg['SENSOR']['offset'] = str( self.sens.offset )
         self.cfg['SENSOR']['p0_raw'] = str( self.sens.p0_raw )
         self.cfg['SENSOR']['p1_raw'] = str( self.sens.p1_raw )
-        with open( self.cfg['DEFAULT']['filename'], "w" ) as configfile:
+        with open( self.cfg['DEFAULT']['config_path'], "w" ) as configfile:
             self.cfg.write( configfile )
 
 

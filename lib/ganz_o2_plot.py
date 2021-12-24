@@ -31,7 +31,6 @@ if __name__ == '__main__':
     conf['DEFAULT']['config_path']  = str('ganz.ini')
     conf.read( conf['DEFAULT']['config_path'] )
 
-
     sens    = Sensor( conf )
 
     fig     = plt.figure()

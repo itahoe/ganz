@@ -209,10 +209,10 @@ if __name__ == '__main__':
     htxt['DEVICE ID'        ].set_text( sens.device_id                      )
     htxt['HARDWARE ID'      ].set_text( sens.hardware_id                    )
     htxt['FIRMWARE ID'      ].set_text( sens.firmware_id                    )
-    htxt['LAST ERROR'       ].set_text( '%04Xh'     % sens.last_error       )
-    htxt['STARTS COUNTER'   ].set_text( sens.starts_counter                 )
-    htxt['ADC SPAN'         ].set_text( '%d mV'     % sens.adc_span         )
-    htxt['ADC RESOLUTION'   ].set_text( '%d bit'    % sens.adc_resolution   )
+    htxt['LAST ERROR'       ].set_text( '%04Xh'     % sens.sts.error_code   )
+    htxt['STARTS COUNTER'   ].set_text( sens.sts.starts_cnt                 )
+    htxt['ADC SPAN'         ].set_text( '%d mV'     % sens.conf.adc_vref    )
+    htxt['ADC RESOLUTION'   ].set_text( '%d bit'    % sens.conf.adc_bits    )
 
     ###########################################################################
     # TIMER
