@@ -19,6 +19,9 @@ from configparser import ConfigParser
 ###############################################################################
 # SENSOR STORAGE
 
+class   SensorModbus:
+    __slots__       =   'master', 'port', 'baud', 'addr', 
+
 class   SensorTitle:
     __slots__       =   'title',
 
@@ -110,6 +113,8 @@ class Sensor:
 
         __slots__           = 'y', 'p',
 
+
+        self.modbus         = SensorModbus()
         #self.config         = SensorConfig()
         self.sts            = SensorStatus()
         self.meas           = SensorMeasure()
@@ -181,6 +186,7 @@ class Sensor:
 
         #######################################################################
         # MODBUS INIT
+        '''
         self.modbus_address = cfg.getint('MODBUS', 'address')
         self.master     = modbus_rtu.RtuMaster( serial.Serial(  port        = cfg.get('MODBUS', 'port'),
                                                                 baudrate    = cfg.getint('MODBUS', 'baudrate'),
@@ -190,12 +196,104 @@ class Sensor:
                                                                 xonxoff=0 )     )
         self.master.set_timeout( 2.0 )
         self.master.set_verbose( False )
+        '''
+
+        self.modbus.port    = cfg.get(      'MODBUS',   'port'      )
+        self.modbus.baud    = cfg.getint(   'MODBUS',   'baudrate'  )
+        self.modbus.addr    = cfg.getint(   'MODBUS',   'address'   )
+        self.modbus.master  = None
+
+        try:
+            self.modbus.master  = modbus_rtu.RtuMaster( serial.Serial(  port    = self.modbus.port,
+                                                                        baudrate = self.modbus.baud,
+                                                                        bytesize=8,
+                                                                        parity='N',
+                                                                        stopbits=1,
+                                                                        xonxoff=0 )     )
+            self.modbus.master.set_timeout( 2.0 )
+            self.modbus.master.set_verbose( False )
+        #except modbus_tk.modbus.ModbusError:
+        except:
+            print( 'Can not open %s' % self.modbus.port )
+            self.modbus.port    = None
+            self.modbus.baud    = None
+            self.modbus.master  = None
+
+
 
         self.read_config()
 
-        self.title  = self.cfg.get('MODBUS', 'port') + '@'
-        self.title  += self.cfg.get('MODBUS', 'baudrate') + ' ADDR: '
-        self.title  += self.cfg.get('MODBUS', 'address')
+
+        self.title  = 'Source: '
+        self.title  += cfg.get('MODBUS','port'      ) + '@'
+        self.title  += cfg.get('MODBUS','baudrate'  ) + ' ADDR: '
+        self.title  += cfg.get('MODBUS','address'   )
+
+
+    ###########################################################################
+    # READ CONFIG
+    def read_config(self):
+        '''
+        fmt = '>BB BB hh BBBB hh HHHHHHHH H H hh H H hh H H hhhhhh'
+
+        d   = self.master.execute(
+                slave               = self.modbus_address,
+                function_code       = cst.READ_HOLDING_REGISTERS,
+                starting_address    = self.hreg['HREG_CONF_BEGIN'],
+                quantity_of_x       = 32,
+                data_format         = fmt )
+
+        self.device_id      = str( '%02X%02X' % (d[ 0], d[ 1]) )
+        self.hardware_id    = str( '%02X%02X' % (d[ 2], d[ 3]) )
+        #self.firmware_id    = str( '%02X%02X%02X%02X%02X%02X' % (d[ 6], d[ 7], d[ 8], d[ 9], d[10], d[11]) )
+        self.firmware_id    = str( '%02X%02X%02X%02X' % (d[ 6], d[ 7], d[ 8], d[ 9]) )
+
+        self.serial_number  =   f'{d[12]:04X}{d[13]:04X}{d[14]:04X}{d[15]:04X}' + \
+                                f'{d[16]:04X}{d[17]:04X}{d[18]:04X}{d[19]:04X}'
+
+        self.last_error     = d[20]
+        self.starts_counter = d[21]
+        self.adc_span       = d[24]
+        self.adc_resolution = d[25]
+        self.adc_mv_per_bit = float( self.adc_span / (2**self.adc_resolution) )
+        '''
+
+        slave_addr      = self.modbus.addr
+        fcode           = cst.READ_HOLDING_REGISTERS
+        start_addr      = self.hreg['HREG_CONF_BEGIN']
+        len             = 32
+        fmt             = '>BB BB hh BBBB hh HHHHHHHH H H hh H H hh H H hhhhhh'
+
+        '''
+        if self.master:
+            print( self.master )
+        else:
+            print( 'NO self.master' )
+        '''
+
+        if self.modbus.master != None:
+            try:
+                #d = self.modbus.master.execute( slave_addr, fcode, start_addr, len, fmt )
+                d = self.modbus.master.execute( slave_addr, fcode, start_addr, len, fmt )
+
+                self.device_id      = str( '%02X%02X' % (d[ 0], d[ 1]) )
+                self.hardware_id    = str( '%02X%02X' % (d[ 2], d[ 3]) )
+                self.firmware_id    = str( '%02X%02X%02X%02X' % (d[ 6], d[ 7], d[ 8], d[ 9]) )
+                self.serial_number  =   f'{d[12]:04X}{d[13]:04X}{d[14]:04X}{d[15]:04X}' + \
+                                        f'{d[16]:04X}{d[17]:04X}{d[18]:04X}{d[19]:04X}'
+                self.last_error     = d[20]
+                self.starts_counter = d[21]
+                self.adc_span       = d[24]
+                self.adc_resolution = d[25]
+                self.adc_mv_per_bit = float( self.adc_span / (2**self.adc_resolution) )
+
+            #except modbus_tk.modbus.ModbusError, e:
+            except modbus_tk.modbus.ModbusInvalidResponseError:
+            #except modbus_tk.modbus.ModbusError:
+                print( 'Modbus Response Error' )
+
+
+
 
     ###########################################################################
     # READ TRIM
@@ -365,34 +463,6 @@ class Sensor:
         return slope
 
     ###########################################################################
-    # READ CONFIG
-    def read_config(self):
-        fmt = '>BB BB hh BBBB hh HHHHHHHH H H hh H H hh H H hhhhhh'
-
-        d   = self.master.execute(
-                slave               = self.modbus_address,
-                function_code       = cst.READ_HOLDING_REGISTERS,
-                starting_address    = self.hreg['HREG_CONF_BEGIN'],
-                quantity_of_x       = 32,
-                data_format         = fmt )
-
-
-        self.device_id      = str( '%02X%02X' % (d[ 0], d[ 1]) )
-        self.hardware_id    = str( '%02X%02X' % (d[ 2], d[ 3]) )
-        #self.firmware_id    = str( '%02X%02X%02X%02X%02X%02X' % (d[ 6], d[ 7], d[ 8], d[ 9], d[10], d[11]) )
-        self.firmware_id    = str( '%02X%02X%02X%02X' % (d[ 6], d[ 7], d[ 8], d[ 9]) )
-
-        self.serial_number  =   f'{d[12]:04X}{d[13]:04X}{d[14]:04X}{d[15]:04X}' + \
-                                f'{d[16]:04X}{d[17]:04X}{d[18]:04X}{d[19]:04X}'
-
-        self.last_error     = d[20]
-        self.starts_counter = d[21]
-        self.adc_span       = d[24]
-        self.adc_resolution = d[25]
-        self.adc_mv_per_bit = float( self.adc_span / (2**self.adc_resolution) )
-
-
-    ###########################################################################
     # READ MEASURE
     def read_measure(self):
         fmt = '>fff hh h h hh h h hh I I I hhhhhhhhhh'
@@ -444,28 +514,48 @@ class Sensor:
 
         return self.meas, self.sts
 
-
-    '''
-    def print(self, data):
-        print(  "%06Xh\t\t%3.2f\t\t%3.2f\t\t%4.2f\t\t%f" %
-                (   data['adc_raw'],
-                    self.raw_to_mV( data['adc_raw'] ),
-                    data['temp_digc' ],
-                    data['pres_hpa'  ],
-                    self.raw_to_ppm(data['adc_raw'], data['temp_digc'], data['pres_hpa']),    ),
-                end='\r' )
-    '''
-
-
     ###########################################################################
     # RAW 2 mV
     def raw_to_mV(self, raw):
         return float(raw * self.adc_mv_per_bit)
 
+    ###########################################################################
+    # Ktemp CELL
+    def ktemp_cell_get(self, t):
+        a = 2.01e-06
+        b = -2.60e-05
+        c = 1.70e-02
+        d = 5.61e-01
+        return a*(t**3) + b*(t**2) + c*t + d
+
+    ###########################################################################
+    # Ktemp AFE
+    def ktemp_afe_get(self, t):
+        #k = (t1 - t0) / (raw1 - raw0)
+        return self.ktemp.ktemp * t
 
     ###########################################################################
     # RAW 2 PPM
-    def raw_to_ppm(self, raw, t_digc, hpa ):
+    def raw_to_ppm(self, raw, t, hpa ):
+        t_ofst = t * self.ktemp.ktemp
+        ppm = raw
+
+        ppm -= self.trim.offset
+
+        ppm *= self.ktemp_afe_get( t )
+
+        ppm *= self.trim.slope
+
+        #ppm *= self.ktemp_cell_get( t )
+
+        #ppm = self.trim.offset + (self.trim.slope * (raw + ktemp) )
+        #ppm = (raw + temp_ofst + zero_ofst) * self.trim.slope
+
+        return( ppm )
+
+    ###########################################################################
+    # RAW 2 PPM
+    def raw_to_ppm_lpf(self, raw, t_digc, hpa ):
 
 
         self.xn[1:]     = self.xn[:-1]
@@ -514,7 +604,7 @@ class Sensor:
 
 
     def trim_write(self, idx):
-        if   idx == 0:
+        if   idx is 0:
             timestamp   = self.trim.timestamp[ 0]
             ppm         = int( self.trim.ppm[ 0] )
             raw         = int( self.trim.raw[ 0] )
@@ -530,7 +620,7 @@ class Sensor:
             except Exception as err:
                 return err
 
-        elif idx == 1:
+        elif idx is 1:
             timestamp   = self.trim.timestamp[ 1]
             ppm         = int( self.trim.ppm[ 1] )
             raw         = int( self.trim.raw[ 1] )
@@ -558,7 +648,7 @@ class Sensor:
     # AFE DRIFT BY TEMPERATURE
     def afe_drift_ktemp_set( self, idx, adc_raw, temp_digc ):
 
-        if idx == 0:
+        if idx is 0:
             self.ktemp.adc_0_raw            = adc_raw
             self.ktemp.t0_digc              = temp_digc
 
@@ -567,7 +657,7 @@ class Sensor:
             with open( self.cfg['DEFAULT']['filename'], "w" ) as configfile:
                 self.cfg.write( configfile )
 
-        elif idx == 1:
+        elif idx is 1:
             self.ktemp.adc_1_raw            = adc_raw
             self.ktemp.t1_digc              = temp_digc
 
@@ -627,7 +717,7 @@ class Sensor:
     # AFE DRIFT BY PRESSURE
     def afe_drift_kpres_save( self, idx, adc_raw, pres_hpa ):
 
-        if idx == 0:
+        if idx is 0:
             self.kpres.adc_0_raw            = adc_raw
             self.kpres.p0_hpa               = pres_hpa
 
@@ -636,7 +726,7 @@ class Sensor:
             with open( self.cfg['DEFAULT']['filename'], "w" ) as configfile:
                 self.cfg.write( configfile )
 
-        elif idx == 1:
+        elif idx is 1:
             self.kpres.adc_1_raw            = adc_raw
             self.kpres.p1_hpa               = pres_hpa
 
@@ -762,8 +852,8 @@ if __name__ == '__main__':
     ###########################################################################
     # CONFIG
     conf    = ConfigParser()
-    conf['DEFAULT']['filename']  = "ganz.ini"
-    conf.read( conf['DEFAULT']['filename'] )
+    conf['DEFAULT']['config_path']  = "ganz.ini"
+    conf.read( conf['DEFAULT']['config_path'] )
 
     modbus = {  'port':     conf['MODBUS']['port'],
                 'baud':     int(conf['MODBUS']['baudrate']),

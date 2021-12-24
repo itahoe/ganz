@@ -191,8 +191,8 @@ if __name__ == '__main__':
     ###########################################################################
     # CONFIG
     cfg     = ConfigParser()
-    cfg['DEFAULT']['filename']  = "o2mb.ini"
-    cfg.read( cfg['DEFAULT']['filename'] )
+    cfg['DEFAULT']['config_path']  = "ganz.ini"
+    cfg.read( cfg['DEFAULT']['config_path'] )
 
     cfg_grph = ConfigParser()
     cfg_grph.read( "o2mb_graph.ini")

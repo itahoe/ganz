@@ -91,7 +91,7 @@ class Callback:
 
 
     def conf_save( self ):
-        confpath   = self.conf['DEFAULT']['ini_path'] + self.conf['DEFAULT']['ini_name']
+        confpath   = self.conf['DEFAULT']['config_path']
         with open( confpath, "w" ) as configfile:
             self.conf.write( configfile )
 
@@ -104,12 +104,10 @@ if __name__ == '__main__':
     # CONFIG
     conf    = ConfigParser()
 
-    #conf['DEFAULT']['ini_path']     = str('../../ini/')
-    conf['DEFAULT']['ini_path']     = str('')
-    conf['DEFAULT']['ini_name']     = str('ganz.ini')
-    conf.read( conf['DEFAULT']['ini_path'] + conf['DEFAULT']['ini_name'] )
+    conf['DEFAULT']['config_path']  = str('ganz.ini')
+    conf.read( conf['DEFAULT']['config_path']
 
-    print( conf['DEFAULT']['ini_path'] + conf['DEFAULT']['ini_name'] )
+    print( conf['DEFAULT']['config_path']
 
     ###########################################################################
     # FIGURE

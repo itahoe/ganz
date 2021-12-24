@@ -82,8 +82,8 @@ if __name__ == '__main__':
     ###########################################################################
     # CONFIG
     conf    = ConfigParser()
-    conf['DEFAULT']['filename']  = "ganz.ini"
-    conf.read( conf['DEFAULT']['filename'] )
+    conf['DEFAULT']['config_path']  = "ganz.ini"
+    conf.read( conf['DEFAULT']['config_path'] )
 
     title   =   conf['MODBUS']['port'] + '@' +            \
                 conf['MODBUS']['baudrate'] + ' ADDR: ' +  \

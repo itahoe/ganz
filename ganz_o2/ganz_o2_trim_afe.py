@@ -142,8 +142,8 @@ if __name__ == '__main__':
     ###########################################################################
     # CONFIG
     conf    = ConfigParser()
-    conf['DEFAULT']['filename']     = str('ganz.ini')
-    conf.read( conf['DEFAULT']['filename'] )
+    conf['DEFAULT']['config_path'] = str('ganz.ini')
+    conf.read( conf['DEFAULT']['config_path'] )
 
     ###########################################################################
     # SENSOR
