@@ -62,7 +62,7 @@ class Callback:
 
 
     def timer( self ):
-        self.sens.read()
+        self.sens.read_measure()
         self.sens.meas.adc_mV       = self.sens.raw_to_mV( self.sens.meas.adc_raw )
         self.sens.meas.ppm_sw       = self.sens.raw_to_ppm( self.sens.meas.adc_raw,
                                                             self.sens.meas.temp_digc,

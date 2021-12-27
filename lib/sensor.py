@@ -372,8 +372,8 @@ class Sensor:
         ##ppm     *= self.ktemp_cell_get( t )
         #ppm     *= self.trim.slope
 
-        ppm     = (raw * self.trim.slope) + self.trim.offset
-        #ppm     = (raw + self.trim.offset) * self.trim.slope
+        #ppm     = (raw * self.trim.slope) + self.trim.offset
+        ppm     = (raw + self.trim.offset) * self.trim.slope
 
         #ppm = self.trim.offset + (self.trim.slope * (raw + ktemp) )
         #ppm = (raw + temp_ofst + zero_ofst) * self.trim.slope
@@ -421,7 +421,8 @@ class Sensor:
     def trim_calc( self, trim ):
         if (trim.raw[ 1] - trim.raw[ 0]) != 0.0:
             trim.slope  = (trim.ppm[ 1] - trim.ppm[ 0]) / (trim.raw[ 1] - trim.raw[ 0])
-            trim.offset = trim.ppm[ 1] - (trim.raw[ 1] * trim.slope)
+            #trim.offset = trim.ppm[ 1] - (trim.raw[ 1] * trim.slope)
+            trim.offset = 0 - trim.raw[ 0]
         else:
             trim.slope   = 1.0
             trim.offset  = 0.0
