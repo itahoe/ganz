@@ -41,7 +41,8 @@ class   SensorMeasure:
                         'temp_raw', 'pres_raw', 'slope_raw', 'offset_raw',
 
 class   SensorTrim:
-    __slots__       =    'slope', 'offset', 'raw', 'ppm', 'timestamp',
+    __slots__       =    'slope', 'offset', 'raw', 'ppm', 'timestamp',      \
+                        'temp_raw', 'temp_digc', 'pres_raw', 'pres_hpa',
 
 class   SensorAfeDriftKtemp:
     __slots__       =   'ktemp', \
@@ -134,17 +135,31 @@ class Sensor:
         ########################################################################
         # TRIM RESTORE
         self.trim               = SensorTrim()
-        self.trim.raw           = [None] * 2
-        self.trim.ppm           = [None] * 2
         self.trim.timestamp     = [None] * 2
+        self.trim.ppm           = [None] * 2
+        self.trim.raw           = [None] * 2
+        self.trim.temp_raw      = [None] * 2
+        self.trim.temp_digc     = [None] * 2
+        self.trim.pres_raw      = [None] * 2
+        self.trim.pres_hpa      = [None] * 2
+
+        self.trim.timestamp[ 0] = cfg.getint(   'P ZERO', 'timestamp'   )
         self.trim.raw[       0] = cfg.getfloat( 'P ZERO', 'raw'         )
         self.trim.ppm[       0] = cfg.getfloat( 'P ZERO', 'ppm'         )
-        self.trim.timestamp[ 0] = cfg.getint(   'P ZERO', 'timestamp'   )
+        self.trim.temp_raw[  0] = cfg.getint(   'P ZERO', 'temp_raw'    )
+        self.trim.temp_digc[ 0] = cfg.getfloat( 'P ZERO', 'temp_digc'   )
+        self.trim.pres_raw[  0] = cfg.getint(   'P ZERO', 'pres_raw'    )
+        self.trim.pres_hpa[  0] = cfg.getfloat( 'P ZERO', 'pres_hpa'    )
+
+        self.trim.timestamp[ 1] = cfg.getint(   'P ZERO', 'timestamp'   )
         self.trim.raw[       1] = cfg.getfloat( 'P SPAN', 'raw'         )
         self.trim.ppm[       1] = cfg.getfloat( 'P SPAN', 'ppm'         )
-        self.trim.timestamp[ 1] = cfg.getint(   'P ZERO', 'timestamp'   )
+        self.trim.temp_raw[  1] = cfg.getint(   'P SPAN', 'temp_raw'    )
+        self.trim.temp_digc[ 1] = cfg.getfloat( 'P SPAN', 'temp_digc'   )
+        self.trim.pres_raw[  1] = cfg.getint(   'P SPAN', 'pres_raw'    )
+        self.trim.pres_hpa[  1] = cfg.getfloat( 'P SPAN', 'pres_hpa'    )
 
-        self.trim.slope, self.trim.offset   = self.trim_calc( self.trim )
+        self.trim.offset, self.trim.slope   = self.trim_calc( self.trim )
 
         ########################################################################
         # AFE DRIFT BY TEMP RESTORE
@@ -298,9 +313,9 @@ class Sensor:
         self.meas.temp_raw      = int(      d[14])
         self.meas.pres_raw      = int(      d[15])
 
-
     ###########################################################################
     # READ
+    '''
     def read(self):
         d = self.modbus.master.execute( slave               = self.modbus.addr,
                                         function_code       = cst.READ_HOLDING_REGISTERS,
@@ -327,6 +342,7 @@ class Sensor:
         self.meas.offset_raw    = int(      d[22])
 
         return self.meas, self.sts
+    '''
 
     ###########################################################################
     # RAW 2 mV
@@ -351,12 +367,13 @@ class Sensor:
     ###########################################################################
     # RAW 2 PPM
     def raw_to_ppm(self, raw, t, hpa ):
-        t_ofst  = t * self.ktemp.ktemp
-        ppm     = raw
-        ppm     -= self.trim.offset
-        ppm     *= self.ktemp_afe_get( t )
-        ppm     *= self.trim.slope
-        #ppm     *= self.ktemp_cell_get( t )
+        #ppm     = raw + self.trim.offset
+        ##ppm     *= self.ktemp_afe_get( t )
+        ##ppm     *= self.ktemp_cell_get( t )
+        #ppm     *= self.trim.slope
+
+        ppm     = (raw * self.trim.slope) + self.trim.offset
+        #ppm     = (raw + self.trim.offset) * self.trim.slope
 
         #ppm = self.trim.offset + (self.trim.slope * (raw + ktemp) )
         #ppm = (raw + temp_ofst + zero_ofst) * self.trim.slope
@@ -383,13 +400,22 @@ class Sensor:
         if idx == 'ZERO':
             #self.trim.raw[ 0] = self.y
             #self.trim.raw[ 0] = self.xn[0]
-            self.trim.raw[ 0] = self.meas.adc_raw
-            self.trim.slope, self.trim.offset = self.trim_calc( self.trim )
+            self.trim.raw[          0]  = self.meas.adc_raw
+            self.trim.temp_raw[     0]  = self.meas.temp_raw
+            self.trim.temp_digc[    0]  = self.meas.temp_digc
+            self.trim.pres_raw[     0]  = self.meas.pres_raw
+            self.trim.pres_hpa[     0]  = self.meas.pres_hpa
+            self.trim.offset, self.trim.slope = self.trim_calc( self.trim )
+
         if idx == 'SPAN':
             #self.trim.raw[ 1] = self.y
             #self.trim.raw[ 1] = self.xn[0]
-            self.trim.raw[ 1] = self.meas.adc_raw
-            self.trim.slope, self.trim.offset = self.trim_calc( self.trim )
+            self.trim.raw[          1]  = self.meas.adc_raw
+            self.trim.temp_raw[     1]  = self.meas.temp_raw
+            self.trim.temp_digc[    1]  = self.meas.temp_digc
+            self.trim.pres_raw[     1]  = self.meas.pres_raw
+            self.trim.pres_hpa[     1]  = self.meas.pres_hpa
+            self.trim.offset, self.trim.slope = self.trim_calc( self.trim )
 
     ###########################################################################
     def trim_calc( self, trim ):
@@ -403,12 +429,7 @@ class Sensor:
         #print( 'slope\toffset\t\tppm[ 0]\t\tppm[ 1]\t\traw[ 0]\t\traw[ 1]')
         print( '%.4f\t' % trim.slope, '%.4f\t' % trim.offset, '%.2f\t\t' % trim.ppm[ 0], '%.2f\t\t' % trim.ppm[ 1], '%.2f\t' % trim.raw[ 0], '%.2f\t' % trim.raw[ 1] )
 
-        return trim.slope, trim.offset
-
-    #def trim_save( self, confpath ):
-    #    with open( confpath, "w" ) as configfile:
-    #        self.cfg.write( configfile )
-
+        return trim.offset, trim.slope
 
     ###########################################################################
     def trim_save( self ):

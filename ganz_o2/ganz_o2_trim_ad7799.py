@@ -160,7 +160,8 @@ class   Gui:
 
 
     def timer_cbk( self, sens, graph ):
-        sens.read()
+        #sens.read()
+        sens.read_measure()
         sens.meas.adc_mV   = sens.raw_to_mV(    sens.meas.adc_raw )
         sens.meas.ppm_sw   = sens.raw_to_ppm(   sens.meas.adc_raw,
                                                 sens.meas.temp_digc,
@@ -179,14 +180,14 @@ class   Gui:
         self.fld_sens_temp.set_text(    '%4.2f °C'  % sens.meas.temp_digc               )
 
         #gui.fld_sens_pressure.set_text( '{:#4.2f}'.format( sens.meas.pres_hpa       ) )
-        self.fld_sens_pressure.set_text( '%4.2f hPa' % sens.meas.pres_hpa                )
+        self.fld_sens_pressure.set_text( '%4.2f hPa' % sens.meas.pres_hpa              )
 
-        self.fld_adc_vref.set_text(      '{:#d} mV'.format( sens.sts.adc_vref        ) )
-        self.fld_adc_res.set_text(       '{:#d}'   .format( sens.sts.adc_res_bits    ) )
+        self.fld_adc_vref.set_text(      '{:#d} mV'.format( sens.conf.adc_vref      ) )
+        self.fld_adc_res.set_text(       '{:#d}'   .format( sens.conf.adc_bits      ) )
 
-        self.fld_sens_conc.set_text(     '{:#4.2f}'.format( sens.meas.ppm_sw         ) )
-        self.fld_mcu_temp.set_text(      '{:#4.2f}'.format( sens.meas.mcu_digc       ) )
-        self.fld_mcu_vdda.set_text(      '{:#4.2f}'.format( sens.meas.mcu_vdda       ) )
+        self.fld_sens_conc.set_text(     '{:#4.2f}'.format( sens.meas.ppm_sw        ) )
+        self.fld_mcu_temp.set_text(      '{:#4.2f}'.format( sens.meas.mcu_digc      ) )
+        self.fld_mcu_vdda.set_text(      '{:#4.2f}'.format( sens.meas.mcu_vdda      ) )
 
 
 ###############################################################################

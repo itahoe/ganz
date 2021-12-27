@@ -63,20 +63,25 @@ class Callback:
 
     def button( self, event, label ):
         if   label == 'P ZERO':
-            #self.sens.trim_p0()
             self.sens.trim_update('ZERO')
-            self.conf[label]['ppm'] = str( self.sens.trim.ppm[ 0] )
-            self.conf[label]['raw'] = str( self.sens.trim.raw[ 0] )
+            self.conf[label]['ppm'      ]   = str( self.sens.trim.ppm[          0]  )
+            self.conf[label]['raw'      ]   = str( self.sens.trim.raw[          0]  )
+            self.conf[label]['temp_raw' ]   = str( self.sens.trim.temp_raw[     0]  )
+            self.conf[label]['temp_digc']   = str( self.sens.trim.temp_digc[    0]  )
+            self.conf[label]['pres_raw' ]   = str( self.sens.trim.pres_raw[     0]  )
+            self.conf[label]['pres_hpa' ]   = str( self.sens.trim.pres_hpa[     0]  )
+
             self.sens.trim_save()
             self.txt['P ZERO'].set_text( '%.2f / %.2f' % (sens.trim.ppm[ 0], sens.raw_to_mV( sens.trim.raw[ 0]) ) )
 
         elif label == 'P SPAN':
-            #self.sens.trim_p1()
             self.sens.trim_update('SPAN')
-            #self.conf[label]['ppm'] = str( self.sens.trim.ppm[ 1] )
-            #self.conf[label]['raw'] = str( self.sens.trim.raw[ 1] )
-            self.conf[label]['ppm'] = str( self.sens.trim.ppm[ 1] )
-            self.conf[label]['raw'] = str( self.sens.trim.raw[ 1] )
+            self.conf[label]['ppm'      ]   = str( self.sens.trim.ppm[          1]  )
+            self.conf[label]['raw'      ]   = str( self.sens.trim.raw[          1]  )
+            self.conf[label]['temp_raw' ]   = str( self.sens.trim.temp_raw[     1]  )
+            self.conf[label]['temp_digc']   = str( self.sens.trim.temp_digc[    1]  )
+            self.conf[label]['pres_raw' ]   = str( self.sens.trim.pres_raw[     1]  )
+            self.conf[label]['pres_hpa' ]   = str( self.sens.trim.pres_hpa[     1]  )
 
             self.sens.trim_save()
             self.txt['P SPAN'].set_text( '%.2f / %.2f' % (sens.trim.ppm[ 1], sens.raw_to_mV( sens.trim.raw[ 1]) ) )
@@ -178,7 +183,7 @@ if __name__ == '__main__':
     xlen    = conf.getint( 'GRAPH', 'axlen' )
     #ax      = fig.add_axes( [0.05, 0.05, 0.70, 0.25], axes_class=HostAxes )
     ax      = fig.add_axes( [0.05, 0.05, 0.80, 0.25], axes_class=HostAxes )
-    graph   = Graph( ax, xlen, param )
+    graph   = Graph( ax, xlen, param, direction='backward' )
     graph.init_timestamp( graph.xdata )
 
     graph.ydata['GAS PPM'] = [0.0 for a in range( len(graph.ydata['GAS PPM']))]

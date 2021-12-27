@@ -53,16 +53,16 @@ if __name__ == '__main__':
         ###########################################################################
         # GRAPH INIT
         #   name                    ymin    ymax        color       linestyle   linewidth
-        #param[0] =  [  'adc_raw',   0,      2**24,      'orange',   'dashed',   1,          ]
-        param[0] =  [  'adc_raw',   2**20,  2**22,      'orange',   'dashed',   1,          ]
+        param[0] =  [  'adc_raw',   0,      2**24,      'orange',   'dashed',   1,          ]
+        #param[0] =  [  'adc_raw',   2**20,  2**22,      'orange',   'dashed',   1,          ]
         param[1] =  [  'temp_digc', 15,     45,         'red',      'dashdot',  1,          ]
         param[2] =  [  'pres_hpa',  950,    1050,       'green',    'dashdot',  1,          ]
-        #param[3] =  [  'ppm_sw',    -50,    150,        'blue',     'dashed',   1,          ]
-        param[3] =  [  'ppm_sw',    5,      15,         'blue',     'dashed',   1,          ]
+        param[3] =  [  'ppm_sw',    -10,    150,        'yellow',   'dotted',   1,          ]
 
-        param.append(['ppm_sw1',    0,      10,         'magenta',  'solid',     2,] )
-        param.append(['kt_cell',    0,      2,          'darkgray', 'dotted',    2,] )
-        #param.append(['rmse',       0,     100,          'black',   'dotted',    1,] )
+        param.append(['ppm_kt_none', 0,     100,        'darkblue', 'dashed',   1,      ] )
+        param.append(['ppm_kt_cell', 0,     100,        'blue',     'dashed',   1,      ] )
+        param.append(['rms_kt_none', 0,     10,        'darkgray', 'dotted',   1,      ] )
+        param.append(['rms_kt_cell', 0,     10,        'gray',     'dotted',   1,      ] )
 
 
         xlen    = 0
@@ -77,33 +77,34 @@ if __name__ == '__main__':
                 else:
                     graph.ydata[k].append( float(v) )
 
-
         print( 'offset: %f, slope: %f, ktemp: %f' % (sens.trim.offset, sens.trim.slope, sens.ktemp.ktemp) )
 
-        #rmse    = [0.0]*100
+        rms_window_len = 600
+        rms_kt_none_data    = [0.0] * rms_window_len
+        rms_kt_cell_data    = [0.0] * rms_window_len
+
 
         for i in range(log.line_num-1):
             raw = graph.ydata['adc_raw'   ][ i]
             t   = graph.ydata['temp_digc' ][ i]
             p   = graph.ydata['pres_hpa'  ][ i]
-            ppm = sens.raw_to_ppm( raw, t, p )  
+            ppm = sens.raw_to_ppm( raw, t, p )
+            #graph.ydata['ppm_sw'].append( ppm )
 
-            graph.ydata['ppm_sw1'].append( ppm )
+            ppm_kt_none = sens.raw_to_ppm( raw, 25.0, p )
+            graph.ydata['ppm_kt_none'].append( ppm_kt_none )
 
-            kt_cell = sens.ktemp_cell_get( t )
-            graph.ydata['kt_cell'].append( kt_cell )
+            ppm_kt_cell = sens.raw_to_ppm( raw, t, p )
+            graph.ydata['ppm_kt_cell'].append( ppm_kt_cell )
 
+            rms_kt_none_data[1:]    = rms_kt_none_data[:-1]
+            rms_kt_none_data[0]     = ppm_kt_none
+            graph.ydata['rms_kt_none'].append( sens.rmse( rms_kt_none_data ) )
 
-            #rmse[1:]    = rmse[:-1]
-            #rmse[0]     = val
+            rms_kt_cell_data[1:]    = rms_kt_cell_data[:-1]
+            rms_kt_cell_data[0]     = ppm_kt_cell
+            graph.ydata['rms_kt_cell'].append( sens.rmse( rms_kt_cell_data ) )
 
-            #rmse    = sens.rmse( graph.ydata['rmse'][ i:i-100] )
-            #graph.ydata['rmse'].append( rmse )
-
-
-
-        #print( 'adc_raw: ', len( graph.ydata['adc_raw'] ) )
-        #print( '   test: ', len( graph.ydata['test']    ) )
 
         graph.plot()
 
