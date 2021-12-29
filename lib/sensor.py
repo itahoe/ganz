@@ -287,10 +287,6 @@ class Sensor:
             except modbus_tk.modbus.ModbusInvalidResponseError:
                 print( 'Modbus Response Error' )
 
-
-
-
-
     ###########################################################################
     # READ MEASURE
     def read_measure(self):
@@ -372,8 +368,11 @@ class Sensor:
         ##ppm     *= self.ktemp_cell_get( t )
         #ppm     *= self.trim.slope
 
-        #ppm     = (raw * self.trim.slope) + self.trim.offset
-        ppm     = (raw + self.trim.offset) * self.trim.slope
+        #ppm     = (raw + self.trim.offset) * self.trim.slope
+        ppm     = ((raw + self.trim.offset) * self.trim.slope) * self.ktemp_cell_get( t )
+
+        #print( (raw + self.trim.offset) )
+        #print( t, self.ktemp_cell_get( t ) )
 
         #ppm = self.trim.offset + (self.trim.slope * (raw + ktemp) )
         #ppm = (raw + temp_ofst + zero_ofst) * self.trim.slope
@@ -420,9 +419,26 @@ class Sensor:
     ###########################################################################
     def trim_calc( self, trim ):
         if (trim.raw[ 1] - trim.raw[ 0]) != 0.0:
-            trim.slope  = (trim.ppm[ 1] - trim.ppm[ 0]) / (trim.raw[ 1] - trim.raw[ 0])
+
+            #ppm     = ((raw + self.trim.offset) * self.trim.slope) * self.ktemp_cell_get( t )
+
             #trim.offset = trim.ppm[ 1] - (trim.raw[ 1] * trim.slope)
+            #trim.slope  = (trim.ppm[ 1] - trim.ppm[ 0]) / (trim.raw[ 1] - trim.raw[ 0])
+
+            t0   = trim.temp_digc[ 0]
+            t1   = trim.temp_digc[ 1]
+
+            ppm1 = trim.ppm[ 1]
+
+            #raw0 = trim.raw[ 0] / self.ktemp_cell_get( t0 )
+            #raw1 = trim.raw[ 1] / self.ktemp_cell_get( t1 )
+            raw0 = trim.raw[ 0]
+            raw1 = trim.raw[ 1]
+
             trim.offset = 0 - trim.raw[ 0]
+            trim.slope  = ppm1 / (raw1 + trim.offset)
+            #trim.slope  = (ppm1/raw1) - (ppm1/raw0)
+            #trim.slope  = self.ktemp_cell_get( t ) / (trim.ppm[ 1] / (trim.raw[ 1] - trim.raw[ 0]))
         else:
             trim.slope   = 1.0
             trim.offset  = 0.0
@@ -863,8 +879,8 @@ if __name__ == '__main__':
                 'baud':     int(conf['MODBUS']['baudrate']),
                 'addr':     int(conf['MODBUS']['address']),  }
 
-    coef    = [float(s) for s in conf['SENSOR']['coefficients'].split(',')]
-    print( 'coef: ', coef, '\tlen: ', len(coef), type(coef) )
+    #coef    = [float(s) for s in conf['SENSOR']['coefficients'].split(',')]
+    #print( 'coef: ', coef, '\tlen: ', len(coef), type(coef) )
 
     fig     = plt.figure()
     fig.canvas.manager.set_window_title( modbus['port'] + '@' + str(modbus['baud']) + ' ' + str(modbus['addr']) )

@@ -275,10 +275,10 @@ if __name__ == '__main__':
 
     #htxt['P SPAN'       ].set_text( '%.2f / %.2f' % (sens.trim.ppm[ 1], sens.trim.raw[ 1])     )
     htxt['P SPAN'       ].set_text( '%.2f / %.2f' % (sens.trim.ppm[ 1], sens.raw_to_mV( sens.trim.raw[ 1]) ) )
-    htxt['Ps UPLOAD'    ].set_text( '%.8f'      % sens.trim_span_read() )
+    #htxt['Ps UPLOAD'    ].set_text( '%.8f'      % sens.trim_span_read() )
     #htxt['P ZERO'       ].set_text( '%.2f / %.2f' % (sens.trim.ppm[ 0], sens.trim.raw[ 0])     )
     htxt['P ZERO'       ].set_text( '%.2f / %.2f' % (sens.trim.ppm[ 0], sens.raw_to_mV( sens.trim.raw[ 0]) ) )
-    htxt['Pz UPLOAD'    ].set_text( '%.8f'      % sens.trim_zero_read() )
+    #htxt['Pz UPLOAD'    ].set_text( '%.8f'      % sens.trim_zero_read() )
 
     ###########################################################################
     # AFE DRIFT Ktemp

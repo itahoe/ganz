@@ -55,14 +55,14 @@ if __name__ == '__main__':
         #   name                    ymin    ymax        color       linestyle   linewidth
         param[0] =  [  'adc_raw',   0,      2**24,      'orange',   'dashed',   1,          ]
         #param[0] =  [  'adc_raw',   2**20,  2**22,      'orange',   'dashed',   1,          ]
-        param[1] =  [  'temp_digc', 15,     45,         'red',      'dashdot',  1,          ]
+        param[1] =  [  'temp_digc', 0,      45,         'red',      'dashdot',  1,          ]
         param[2] =  [  'pres_hpa',  950,    1050,       'green',    'dashdot',  1,          ]
         param[3] =  [  'ppm_sw',    -10,    150,        'yellow',   'dotted',   1,          ]
 
-        param.append(['ppm_kt_none', 0,     100,        'darkblue', 'dashed',   1,      ] )
-        param.append(['ppm_kt_cell', 0,     100,        'blue',     'dashed',   1,      ] )
-        param.append(['rms_kt_none', 0,     10,        'darkgray', 'dotted',   1,      ] )
-        param.append(['rms_kt_cell', 0,     10,        'gray',     'dotted',   1,      ] )
+        param.append(['ppm_kt_none', 50,    100,        'darkblue', 'dashed',   1,      ] )
+        param.append(['ppm_kt_cell', 50,    100,        'blue',     'dashed',   1,      ] )
+        param.append(['rms_kt_none', 0,     10,         'darkgray', 'dotted',   1,      ] )
+        param.append(['rms_kt_cell', 0,     10,         'gray',     'dotted',   1,      ] )
 
 
         xlen    = 0
