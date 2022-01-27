@@ -44,7 +44,8 @@ class Callback:
     '''
 
     def timer( self ):
-        self.sens.read()
+        #self.sens.read()
+        self.sens.read_measure()
 
         print( '%08X' % self.sens.meas.adc_raw, end='\r' )
         self.sens.meas.adc_mV   = self.sens.raw_to_mV( self.sens.meas.adc_raw )
@@ -72,13 +73,15 @@ class Callback:
 
 
     def button( self, event, label ):
-        if label == 'P HIGH':
-            self.sens.trim_p1()
+        if label == 'P SPAN':
+            #self.sens.trim_p1()
+            self.sens.trim_update('SPAN')
             self.conf[label]['ppm'] = str( self.sens.trim.ppm[ 1] )
             self.conf[label]['raw'] = str( self.sens.trim.raw[ 1] )
             self.conf_save()
         elif label == 'P ZERO':
-            self.sens.trim_p0()
+            #self.sens.trim_p0()
+            self.sens.trim_update('ZERO')
             self.conf[label]['ppm'] = str( self.sens.trim.ppm[ 0] )
             self.conf[label]['raw'] = str( self.sens.trim.raw[ 0] )
             self.conf_save()

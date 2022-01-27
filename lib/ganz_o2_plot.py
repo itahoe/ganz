@@ -59,8 +59,8 @@ if __name__ == '__main__':
         param[2] =  [  'pres_hpa',  950,    1050,       'green',    'dashdot',  1,          ]
         param[3] =  [  'ppm_sw',    -10,    150,        'yellow',   'dotted',   1,          ]
 
-        param.append(['ppm_kt_none', 50,    100,        'darkblue', 'dashed',   1,      ] )
-        param.append(['ppm_kt_cell', 50,    100,        'blue',     'dashed',   1,      ] )
+        param.append(['ppm_kt_none', -1,    1,        'darkblue', 'dashed',   1,      ] )
+        param.append(['ppm_kt_cell', -1,    1,        'blue',     'dashed',   1,      ] )
         param.append(['rms_kt_none', 0,     10,         'darkgray', 'dotted',   1,      ] )
         param.append(['rms_kt_cell', 0,     10,         'gray',     'dotted',   1,      ] )
 
@@ -77,7 +77,7 @@ if __name__ == '__main__':
                 else:
                     graph.ydata[k].append( float(v) )
 
-        print( 'offset: %f, slope: %f, ktemp: %f' % (sens.trim.offset, sens.trim.slope, sens.ktemp.ktemp) )
+        #print( 'offset: %f, slope: %f, ktemp: %f' % (sens.trim.offset, sens.trim.slope, sens.ktemp.ktemp) )
 
         rms_window_len = 600
         rms_kt_none_data    = [0.0] * rms_window_len

@@ -66,9 +66,9 @@ class Sensor:
         self.hreg   = { 
                         'HREG_CONF_BEGIN'               : 0x0000,
                         #'HREG_CONF_BEGIN'               : 0x0100,
-                        'HREG_TRIM'                     : 0x0030,
-                        'HREG_TRIM_ZERO'                : 0x0030,
-                        'HREG_TRIM_SPAN'                : 0x0038,
+                        'HREG_SENS'                     : 0x0030,
+                        'HREG_SENS_ZERO'                : 0x0030,
+                        'HREG_SENS_SPAN'                : 0x0038,
 
                         #'HREG_CONF_AD7799_OFFSET'       : 0x0156,
                         'HREG_CONF_AFE_BIAS'            : 0x0144,
@@ -79,7 +79,10 @@ class Sensor:
                         'HREG_CONF_AD7799_CONF'         : 0x0151,
                         'HREG_CONF_AD7799_CHANNEL'      : 0x0154,
                         'HREG_CONF_AD7799_GAIN'         : 0x0155,
-                        'HREG_MEAS_BEGIN'               : 0x0200,   }
+                        'HREG_MEAS_BEGIN'               : 0x0200,
+
+                        'HREG_SENS_LPF_FCUT'            : 0x0220,
+                        'HREG_SENS_LPF_ORDER'           : 0x0221,   }
 
         self.coil   = { 'AFE_CTL_UNIPOLAR'          :0,
                         'AFE_CTL_BUFFER_ENABLE'     :1,
@@ -143,21 +146,21 @@ class Sensor:
         self.trim.pres_raw      = [None] * 2
         self.trim.pres_hpa      = [None] * 2
 
-        self.trim.timestamp[ 0] = cfg.getint(   'P ZERO', 'timestamp'   )
-        self.trim.raw[       0] = cfg.getfloat( 'P ZERO', 'raw'         )
-        self.trim.ppm[       0] = cfg.getfloat( 'P ZERO', 'ppm'         )
-        self.trim.temp_raw[  0] = cfg.getint(   'P ZERO', 'temp_raw'    )
-        self.trim.temp_digc[ 0] = cfg.getfloat( 'P ZERO', 'temp_digc'   )
-        self.trim.pres_raw[  0] = cfg.getint(   'P ZERO', 'pres_raw'    )
-        self.trim.pres_hpa[  0] = cfg.getfloat( 'P ZERO', 'pres_hpa'    )
+        self.trim.timestamp[ 0] = cfg.getint(   'ZERO SW', 'timestamp'   )
+        self.trim.raw[       0] = cfg.getfloat( 'ZERO SW', 'raw'         )
+        self.trim.ppm[       0] = cfg.getfloat( 'ZERO SW', 'ppm'         )
+        self.trim.temp_raw[  0] = cfg.getint(   'ZERO SW', 'temp_raw'    )
+        self.trim.temp_digc[ 0] = cfg.getfloat( 'ZERO SW', 'temp_digc'   )
+        self.trim.pres_raw[  0] = cfg.getint(   'ZERO SW', 'pres_raw'    )
+        self.trim.pres_hpa[  0] = cfg.getfloat( 'ZERO SW', 'pres_hpa'    )
 
-        self.trim.timestamp[ 1] = cfg.getint(   'P ZERO', 'timestamp'   )
-        self.trim.raw[       1] = cfg.getfloat( 'P SPAN', 'raw'         )
-        self.trim.ppm[       1] = cfg.getfloat( 'P SPAN', 'ppm'         )
-        self.trim.temp_raw[  1] = cfg.getint(   'P SPAN', 'temp_raw'    )
-        self.trim.temp_digc[ 1] = cfg.getfloat( 'P SPAN', 'temp_digc'   )
-        self.trim.pres_raw[  1] = cfg.getint(   'P SPAN', 'pres_raw'    )
-        self.trim.pres_hpa[  1] = cfg.getfloat( 'P SPAN', 'pres_hpa'    )
+        self.trim.timestamp[ 1] = cfg.getint(   'SPAN SW', 'timestamp'   )
+        self.trim.raw[       1] = cfg.getfloat( 'SPAN SW', 'raw'         )
+        self.trim.ppm[       1] = cfg.getfloat( 'SPAN SW', 'ppm'         )
+        self.trim.temp_raw[  1] = cfg.getint(   'SPAN SW', 'temp_raw'    )
+        self.trim.temp_digc[ 1] = cfg.getfloat( 'SPAN SW', 'temp_digc'   )
+        self.trim.pres_raw[  1] = cfg.getint(   'SPAN SW', 'pres_raw'    )
+        self.trim.pres_hpa[  1] = cfg.getfloat( 'SPAN SW', 'pres_hpa'    )
 
         self.trim.offset, self.trim.slope   = self.trim_calc( self.trim )
 
@@ -361,22 +364,19 @@ class Sensor:
         return self.ktemp.ktemp * t
 
     ###########################################################################
+    # Ktemp AFE
+    def kpres_get(self, t):
+        #k = (t1 - t0) / (raw1 - raw0)
+        return self.kpres.kpres * t
+
+    ###########################################################################
     # RAW 2 PPM
     def raw_to_ppm(self, raw, t, hpa ):
-        #ppm     = raw + self.trim.offset
-        ##ppm     *= self.ktemp_afe_get( t )
-        ##ppm     *= self.ktemp_cell_get( t )
-        #ppm     *= self.trim.slope
-
-        #ppm     = (raw + self.trim.offset) * self.trim.slope
-        ppm     = ((raw + self.trim.offset) * self.trim.slope) * self.ktemp_cell_get( t )
-
-        #print( (raw + self.trim.offset) )
-        #print( t, self.ktemp_cell_get( t ) )
-
-        #ppm = self.trim.offset + (self.trim.slope * (raw + ktemp) )
-        #ppm = (raw + temp_ofst + zero_ofst) * self.trim.slope
-
+        ppm = raw + self.trim.offset
+        ppm *= self.trim.slope
+        #ppm *= self.ktemp_cell_get(t)
+        #ppm *= self.ktemp_afe_get(t)
+        #ppm *= self.kpres_get(t)
         return( ppm )
 
     ###########################################################################
@@ -397,6 +397,7 @@ class Sensor:
     # TRIM
     def trim_update(self, idx ):
         if idx == 'ZERO':
+            print('trim_update ZERO')
             #self.trim.raw[ 0] = self.y
             #self.trim.raw[ 0] = self.xn[0]
             self.trim.raw[          0]  = self.meas.adc_raw
@@ -407,6 +408,7 @@ class Sensor:
             self.trim.offset, self.trim.slope = self.trim_calc( self.trim )
 
         if idx == 'SPAN':
+            print('trim_update SPAN')
             #self.trim.raw[ 1] = self.y
             #self.trim.raw[ 1] = self.xn[0]
             self.trim.raw[          1]  = self.meas.adc_raw
@@ -443,8 +445,12 @@ class Sensor:
             trim.slope   = 1.0
             trim.offset  = 0.0
 
-        #print( 'slope\toffset\t\tppm[ 0]\t\tppm[ 1]\t\traw[ 0]\t\traw[ 1]')
-        print( '%.4f\t' % trim.slope, '%.4f\t' % trim.offset, '%.2f\t\t' % trim.ppm[ 0], '%.2f\t\t' % trim.ppm[ 1], '%.2f\t' % trim.raw[ 0], '%.2f\t' % trim.raw[ 1] )
+        print('--------')
+        print('   zero: %.2f\t0x%08X' % (trim.ppm[ 0], int(trim.raw[ 0])) )
+        print('   span: %.2f\t0x%08X' % (trim.ppm[ 1], int(trim.raw[ 1])) )
+        print(' offset: %.4f' % trim.offset     )
+        print('  slope: %f'   % trim.slope      )
+        print('--------')
 
         return trim.offset, trim.slope
 
@@ -462,7 +468,7 @@ class Sensor:
             try:
                 self.modbus.master.execute( slave               = self.modbus.addr,
                                             function_code       = cst.WRITE_MULTIPLE_REGISTERS,
-                                            starting_address    = self.hreg['HREG_TRIM_ZERO'],
+                                            starting_address    = self.hreg['HREG_SENS_ZERO'],
                                             quantity_of_x       = 6,
                                             output_value        = [ timestamp, ppm, raw ],
                                             data_format         = '>III' )
@@ -479,7 +485,7 @@ class Sensor:
             try:
                 self.modbus.master.execute( slave               = self.modbus.addr,
                                             function_code       = cst.WRITE_MULTIPLE_REGISTERS,
-                                            starting_address    = self.hreg['HREG_TRIM_SPAN'],
+                                            starting_address    = self.hreg['HREG_SENS_SPAN'],
                                             quantity_of_x       = 6,
                                             output_value        = [ timestamp, ppm, raw ],
                                             data_format         = '>III' )
@@ -534,7 +540,7 @@ class Sensor:
 
 
     def afe_drift_ktemp_get( self ):
-        print( self.ktemp.ktemp )
+        #print( self.ktemp.ktemp )
         return( self.ktemp.ktemp )
 
 
@@ -545,7 +551,7 @@ class Sensor:
                                         quantity_of_x       = 2,
                                         data_format         = '>f' )
 
-        print( d[ 0] )
+        #print( d[ 0] )
         return( d[ 0] )
 
 
@@ -637,7 +643,7 @@ class Sensor:
         fmt = '>I f f hh I f f hh'
         d = self.modbus.master.execute( slave               = self.modbus.addr,
                                         function_code       = cst.READ_HOLDING_REGISTERS,
-                                        starting_address    = self.hreg['HREG_TRIM'],
+                                        starting_address    = self.hreg['HREG_SENS'],
                                         quantity_of_x       = 16,
                                         data_format         = fmt )
 
@@ -655,9 +661,9 @@ class Sensor:
     def trim_zero_read(self):
         data = self.modbus.master.execute(  slave               = self.modbus.addr,
                                             function_code       = cst.READ_HOLDING_REGISTERS,
-                                            starting_address    = self.hreg['HREG_TRIM_ZERO'],
+                                            starting_address    = self.hreg['HREG_SENS_ZERO'],
                                             quantity_of_x       = 8,
-                                            data_format         = '>I f f hh' )
+                                            data_format         = '>I I f hh' )
 
         timestamp   = data[ 0]
         ppm         = data[ 1]
@@ -670,13 +676,15 @@ class Sensor:
     def trim_span_read(self):
         data = self.modbus.master.execute(  slave               = self.modbus.addr,
                                             function_code       = cst.READ_HOLDING_REGISTERS,
-                                            starting_address    = self.hreg['HREG_TRIM_SPAN'],
+                                            starting_address    = self.hreg['HREG_SENS_SPAN'],
                                             quantity_of_x       = 8,
-                                            data_format         = '>I f f hh' )
+                                            data_format         = '>I I f hh' )
 
         timestamp   = data[ 0]
         ppm         = data[ 1]
         raw         = data[ 2]
+
+        print( data )
 
         #return ppm, raw, timestamp
         return ppm
@@ -810,7 +818,41 @@ class Sensor:
         return math.sqrt( xsum )
 
 
+    ###########################################################################
+    # SENS LPF ORDER
+    def sens_lpf_order_get(self):
+        data = self.modbus.master.execute(  slave               = self.modbus.addr,
+                                            function_code       = cst.READ_HOLDING_REGISTERS,
+                                            starting_address    = self.hreg['HREG_SENS_LPF_ORDER'],
+                                            quantity_of_x       = 1,
+                                            data_format         = '>h' )
+        return int( data[0] )
 
+
+    def sens_lpf_order_set(self, val):
+        self.modbus.master.execute( slave               = self.modbus.addr,
+                                    function_code       = cst.WRITE_SINGLE_REGISTER,
+                                    starting_address    = self.hreg['HREG_SENS_LPF_ORDER'],
+                                    output_value        = val )
+
+
+
+    ###########################################################################
+    # SENS LPF Fcut
+    def sens_lpf_fcut_get(self):
+        data = self.modbus.master.execute(  slave               = self.modbus.addr,
+                                            function_code       = cst.READ_HOLDING_REGISTERS,
+                                            starting_address    = self.hreg['HREG_SENS_LPF_FCUT'],
+                                            quantity_of_x       = 1,
+                                            data_format         = '>h' )
+        return int( data[0] )
+
+
+    def sens_lpf_fcut_set(self, val):
+        self.modbus.master.execute( slave               = self.modbus.addr,
+                                    function_code       = cst.WRITE_SINGLE_REGISTER,
+                                    starting_address    = self.hreg['HREG_SENS_LPF_FCUT'],
+                                    output_value        = val )
 
 
 ###############################################################################
@@ -857,8 +899,7 @@ class Callback:
         txt['TEMP'  ].set_text( '{:#4.2f} °C'   .format( meas.temp_digc                 ) )
         txt['PRES'  ].set_text( '{:#4.2f} hPa'  .format( meas.pres_hpa                  ) )
 
-        print( "| %8.2f | %3.2f | %4.2f | %8d |" %
-                (meas.ppm_hw, meas.temp_digc, meas.pres_hpa, meas.slope_raw ), end = '\r' )
+        #print( "| %8.2f | %3.2f | %4.2f | %8d |" % (meas.ppm_hw, meas.temp_digc, meas.pres_hpa, meas.slope_raw ), end = '\r' )
 
 
     def button( self, event, lbl ):
