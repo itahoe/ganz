@@ -189,6 +189,8 @@ class   Gui:
         self.fld_mcu_temp.set_text(      '{:#4.2f}'.format( sens.meas.mcu_digc      ) )
         self.fld_mcu_vdda.set_text(      '{:#4.2f}'.format( sens.meas.mcu_vdda      ) )
 
+        afe_gain.set_active( sens.afe_adc_gain_get() )
+
 
 ###############################################################################
 # MAIN
