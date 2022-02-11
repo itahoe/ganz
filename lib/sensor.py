@@ -70,6 +70,7 @@ class Sensor:
                         'HREG_SENS_ZERO'                : 0x0030,
                         'HREG_SENS_SPAN'                : 0x0038,
 
+                        'HREG_CONF_DEVICE_ID'           : 0x0100,
                         #'HREG_CONF_AD7799_OFFSET'       : 0x0156,
                         'HREG_CONF_AFE_BIAS'            : 0x0144,
 
@@ -230,7 +231,8 @@ class Sensor:
             #self.modbus.baud    = None
             #self.modbus.master  = None
 
-        self.read_config()
+        #self.read_config()
+        self.read_config_device()
 
         self.title  = 'Source: '
         self.title  += cfg.get('MODBUS','port'      ) + '@'
@@ -286,6 +288,32 @@ class Sensor:
                 self.conf.adc_vref  = d[20]
                 self.conf.adc_bits  = d[21]
                 self.conf.adc_mv_per_bit = float( self.conf.adc_vref / (2**self.conf.adc_bits) )
+
+            except modbus_tk.modbus.ModbusInvalidResponseError:
+                print( 'Modbus Response Error' )
+
+    ###########################################################################
+    # READ CONFIG
+    def read_config_device(self):
+        slave_addr      = self.modbus.addr
+        fcode           = cst.READ_HOLDING_REGISTERS
+        start_addr      = self.hreg['HREG_CONF_DEVICE_ID']
+        len             = 16
+        fmt             = '>H H hh HH hh HHHHHHHH'
+
+        if self.modbus.master != None:
+            try:
+                d = self.modbus.master.execute( slave_addr, fcode, start_addr, len, fmt )
+
+                self.device_id      = str( '%04X' % d[ 0] )
+                self.hardware_id    = str( '%04X' % d[ 1] )
+                self.firmware_id    = str( '%04X%04X' % (d[ 4], d[ 5] ) )
+                self.serial_number  = str( '%04X%04X%04X%04X%04X%04X%04X%04X' % ( d[ 8], d[ 9], d[ 10], d[11], d[12], d[13], d[14], d[15] ) )
+                #self.sts.error_code = d[16]
+                #self.sts.starts_cnt = d[17]
+                #self.conf.adc_vref  = d[20]
+                #self.conf.adc_bits  = d[21]
+                #self.conf.adc_mv_per_bit = float( self.conf.adc_vref / (2**self.conf.adc_bits) )
 
             except modbus_tk.modbus.ModbusInvalidResponseError:
                 print( 'Modbus Response Error' )
